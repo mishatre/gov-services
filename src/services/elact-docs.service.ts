@@ -20,6 +20,7 @@ import { getHighestVersionFolder, getRequestShim, mapToObject } from '../utils/i
 import { executeSoapRequest } from '../utils/soap.js';
 
 interface ElactDocsServiceSettings {
+    tokenService: string;
     elact: {
         schemas: string;
         wsdl: string;
@@ -74,6 +75,7 @@ const documentKind = [
     },
 
     settings: {
+        tokenService: process.env.ELACT_DOCS_TOKEN_SERVICE || 'elact-eruz',
         elact: {
             schemas: './schemas/elact',
             wsdl: 'WSDL/WebServiceElactsDocsLKP.wsdl',
@@ -91,7 +93,7 @@ const documentKind = [
 export default class ElactDocsService extends MoleculerService<ElactDocsServiceSettings> {
     // @ts-expect-error
     private clientDocuments: Client;
-    private useEruzService = false;
+    private useTokenService = false;
 
     @action({
         name: 'getContractsList',
@@ -294,8 +296,10 @@ export default class ElactDocsService extends MoleculerService<ElactDocsServiceS
         if (ctx.meta.token) {
             ctx.locals.usertoken = ctx.meta.token;
             delete ctx.meta.token;
-        } else if (this.useEruzService) {
-            const usertoken = await ctx.call('eruz.getToken', { regNum: ctx.params.regNum });
+        } else if (this.useTokenService) {
+            const usertoken = await ctx.call(`${this.settings.tokenService}.getToken`, {
+                regNum: ctx.params.regNum,
+            });
             if (!usertoken) {
                 throw new TokenNotFoundError();
             }
@@ -306,17 +310,19 @@ export default class ElactDocsService extends MoleculerService<ElactDocsServiceS
     }
 
     @method
-    private setIsEruzServiceAvailable() {
-        const currentValue = this.useEruzService;
+    private setIsTokenServiceAvailable() {
+        const currentValue = this.useTokenService;
 
         const list = this.broker.registry.getServiceList({
             skipInternal: true,
             onlyAvailable: true,
         });
-        this.useEruzService = list.find((v) => v.name === 'eruz') !== undefined;
+        this.useTokenService =
+            list.find((v) => v.name.toLowerCase() === this.settings.tokenService.toLowerCase()) !==
+            undefined;
 
-        if (currentValue !== this.useEruzService) {
-            this.logger.debug(`useEruzService: ${currentValue} -> ${this.useEruzService}`);
+        if (currentValue !== this.useTokenService) {
+            this.logger.debug(`useTokenService: ${currentValue} -> ${this.useTokenService}`);
         }
     }
 
@@ -408,7 +414,7 @@ export default class ElactDocsService extends MoleculerService<ElactDocsServiceS
         context: true,
     })
     protected onServiceChanged(ctx: Context<any>) {
-        this.setIsEruzServiceAvailable();
+        this.setIsTokenServiceAvailable();
     }
 
     @event({
@@ -417,7 +423,7 @@ export default class ElactDocsService extends MoleculerService<ElactDocsServiceS
     })
     protected onNodeDisconnected(ctx: Context<{ node: BrokerNode; unexpected: boolean }>) {
         if (ctx.params.unexpected) {
-            this.setIsEruzServiceAvailable();
+            this.setIsTokenServiceAvailable();
         }
     }
 
@@ -436,6 +442,6 @@ export default class ElactDocsService extends MoleculerService<ElactDocsServiceS
         });
         this.clientDocuments.setEndpoint(this.settings.elact.endpoint);
 
-        this.setIsEruzServiceAvailable();
+        this.setIsTokenServiceAvailable();
     }
 }
