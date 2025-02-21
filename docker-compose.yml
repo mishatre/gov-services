@@ -1,0 +1,36 @@
+name: eis
+
+services:
+    elact-docs:
+        image: eis
+        env_file: .env
+        environment:
+            - NODEID=eis.elact-docs
+            - SERVICES=elact-docs.service.mjs
+            - DOPPLER_TOKEN
+
+    elact-utils:
+        image: eis
+        env_file: .env
+        environment:
+            - NODEID=eis.elact-utils
+            - SERVICES=elact-utils.service.mjs
+            - DOPPLER_TOKEN
+
+    zakupki-rss:
+        image: eis
+        env_file: .env
+        environment:
+            - NODEID=eis.zakupki-rss
+            - SERVICES=zakupki-rss.service.mjs
+            - DOPPLER_TOKEN
+
+    eruz:
+        image: eis
+        env_file: .env
+        environment:
+            - NODEID=eis.eruz
+            - SERVICES=eruz.service.mjs
+            - DOPPLER_TOKEN
+        volumes:
+            - ./database:/usr/src/app/database:rw
