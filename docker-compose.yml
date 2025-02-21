@@ -25,12 +25,12 @@ services:
             - SERVICES=zakupki-rss.service.mjs
             - DOPPLER_TOKEN
 
-    eruz:
+    elact-eruz:
         image: eis
         env_file: .env
         environment:
-            - NODEID=eis.eruz
-            - SERVICES=eruz.service.mjs
+            - NODEID=eis.elact-eruz
+            - SERVICES=elact-eruz.service.mjs
             - DOPPLER_TOKEN
         volumes:
             - ./database:/usr/src/app/database:rw

@@ -50,6 +50,12 @@ importers:
       moleculer:
         specifier: 0.14.34
         version: 0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)
+      moleculer-db:
+        specifier: ^0.8.28
+        version: 0.8.28(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))
+      moleculer-db-adapter-sequelize:
+        specifier: ^0.2.19
+        version: 0.2.19(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))(sequelize@6.37.5(sqlite3@5.1.7))
       nats:
         specifier: ^2.28.2
         version: 2.28.2
@@ -59,9 +65,15 @@ importers:
       rss-parser:
         specifier: ^3.13.0
         version: 3.13.0
+      sequelize:
+        specifier: ^6.37.5
+        version: 6.37.5(sqlite3@5.1.7)
       soap:
         specifier: ^1.1.5
         version: 1.1.5
+      sqlite3:
+        specifier: ^5.1.7
+        version: 5.1.7
       telegraf:
         specifier: ^4.16.3
         version: 4.16.3(encoding@0.1.13)
@@ -89,7 +101,7 @@ importers:
         version: 0.24.0
       moldecor:
         specifier: github:mishatre/moldecor#heads/next
-        version: https://codeload.github.com/mishatre/moldecor/tar.gz/06cc9bb0dd6454c22dfd99978246e6032f2ababd(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))
+        version: https://codeload.github.com/mishatre/moldecor/tar.gz/4631ac580a8591fa94e56aec4870d6b67805926b(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))
       typescript:
         specifier: ^5.6.3
         version: 5.6.3
@@ -529,6 +541,12 @@ packages:
     engines: {node: '>=10'}
     deprecated: This functionality has been moved to @npmcli/fs
 
+  '@seald-io/binary-search-tree@1.0.3':
+    resolution: {integrity: sha512-qv3jnwoakeax2razYaMsGI/luWdliBLHTdC6jU55hQt1hcFqzauH/HsBollQ7IR4ySTtYhT+xyHoijpA16C+tA==}
+
+  '@seald-io/nedb@3.1.0':
+    resolution: {integrity: sha512-5G0hCQGJjOelOutvW1l4VD581XMhTPxpj1BUaCWTEM2MPXR9TzIr0MKMnEjnTA5nEKfujPyvVW7iF3etm1/gKQ==}
+
   '@socket.io/component-emitter@3.1.2':
     resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
 
@@ -554,14 +572,23 @@ packages:
   '@types/cors@2.8.17':
     resolution: {integrity: sha512-8CGDvrBj1zgo2qE+oS3pOCyYNqCPryMWY2bGfwA0dcfopWGgxs+78df0Rs3rc9THP4JkOhLsAa+15VdpAqkcUA==}
 
+  '@types/debug@4.1.12':
+    resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
+
   '@types/lodash@4.17.10':
     resolution: {integrity: sha512-YpS0zzoduEhuOWjAotS6A5AVCva7X4lVlYLF0FYHAY9sdraBfnatttHItlWeZdGhuEkf+OzMNg2ZYAx8t+52uQ==}
+
+  '@types/ms@2.1.0':
+    resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
   '@types/node@20.16.11':
     resolution: {integrity: sha512-y+cTCACu92FyA5fgQSAI8A1H429g7aSK2HsO7K4XYUWc4dY5IUz55JSDIYT6/VsOLfGy8vmvQYC2hfb0iF16Uw==}
 
   '@types/triple-beam@1.3.5':
     resolution: {integrity: sha512-6WaYesThRMCl19iryMYP7/x2OVgCtbIVflDGFpWnb9irXI3UjYE4AzmYuiUKY1AJstGijoY+MgUszMgRxIYTYw==}
+
+  '@types/validator@13.12.2':
+    resolution: {integrity: sha512-6SlHBzUW8Jhf3liqrGGXyTJSIFe4nqlJ5A5KaMZ2l/vbM3Wh3KSybots/wfWVzNLK4D1NZluDlSQIbIEPx6oyA==}
 
   '@xmldom/is-dom-node@1.0.1':
     resolution: {integrity: sha512-CJDxIgE5I0FH+ttq/Fxy6nRpxP70+e2O048EPe85J2use3XKdatVM7dDVvFNjQudd9B49NPoZ+8PG49zj4Er8Q==}
@@ -897,6 +924,9 @@ packages:
     resolution: {integrity: sha512-ZmdL2rui+eB2YwhsWzjInR8LldtZHGDoQ1ugH85ppHKwpUHL7j7rN0Ti9NCnGiQbhaZ11FpR+7ao1dNsmduNUg==}
     engines: {node: '>=12'}
 
+  dottie@2.0.6:
+    resolution: {integrity: sha512-iGCHkfUc5kFekGiqhe8B/mdaurD+lakO9txNnTvKtA6PISrw86LgqHvRzWYPyoE2Ph5aMIrCw9/uko6XHTKCwA==}
+
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
@@ -1132,6 +1162,9 @@ packages:
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
 
+  immediate@3.0.6:
+    resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
+
   imurmurhash@0.1.4:
     resolution: {integrity: sha512-JmXMZ6wuvDmLiHEml9ykzqO6lwFbof0GG4IkcGaENdCRDDmMVnny7s5HsIgHCbaq0w2MyPhDqkhTUgS2LU2PHA==}
     engines: {node: '>=0.8.19'}
@@ -1145,6 +1178,10 @@ packages:
 
   infer-owner@1.0.4:
     resolution: {integrity: sha512-IClj+Xz94+d7irH5qRyfJonOdfTzuDaifE6ZPWfx0N0+/ATZCbuTPq2prFl526urkQd90WyUKIh1DfBQ2hMz9A==}
+
+  inflection@1.13.4:
+    resolution: {integrity: sha512-6I/HUDeYFfuNCVS3td055BaXBwKYuzw7K3ExVMStBowKo9oOAMJIXIHvdyR3iboTCp1b+1i5DSkIZTcwIktuDw==}
+    engines: {'0': node >= 0.4.0}
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
@@ -1253,6 +1290,12 @@ packages:
     resolution: {integrity: sha512-nvVPLpIHUxCUoRLrFqTgSxXJ614d8AgQoWl7zPe/2VadE8+1dpU3LBhowRuBAcuwruWtOdD8oYC9jDNJjXDPyA==}
     engines: {node: '>=0.10.0'}
 
+  lie@3.1.1:
+    resolution: {integrity: sha512-RiNhHysUjhrDQntfYSfY4MU24coXXdEOgw9WGcKHNeEwffDYbF//u87M1EWaMGzuFoSbqW0C9C6lEEhDOAswfw==}
+
+  localforage@1.10.0:
+    resolution: {integrity: sha512-14/H1aX7hzBBmmh7sGPd+AOMkkIrHM3Z1PAyGgZigA1H1p5O5ANnMyWzvpAETtG68/dC4pC0ncy3+PPGzXZHPg==}
+
   lodash.defaults@4.2.0:
     resolution: {integrity: sha512-qjxPLHd3r5DnsdGacqOMU6pb/avJzdh9tFX2ymgoZE27BmjXrNy/y4LoaiTeAb+O3gL8AfpJGtqfX/ae2leYYQ==}
 
@@ -1346,12 +1389,25 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  moldecor@https://codeload.github.com/mishatre/moldecor/tar.gz/06cc9bb0dd6454c22dfd99978246e6032f2ababd:
-    resolution: {tarball: https://codeload.github.com/mishatre/moldecor/tar.gz/06cc9bb0dd6454c22dfd99978246e6032f2ababd}
+  moldecor@https://codeload.github.com/mishatre/moldecor/tar.gz/4631ac580a8591fa94e56aec4870d6b67805926b:
+    resolution: {tarball: https://codeload.github.com/mishatre/moldecor/tar.gz/4631ac580a8591fa94e56aec4870d6b67805926b}
     version: 1.0.0
     engines: {node: '>=16'}
     peerDependencies:
       moleculer: ~0.15.0-beta1
+
+  moleculer-db-adapter-sequelize@0.2.19:
+    resolution: {integrity: sha512-Jds6WM9S8DinuoF0Pq7/1Nj6IaNiScXwgqtTCjcGOyglMbo4BRjK278iMAzEANobm7E5Me5eiub6bOosutnF+w==}
+    engines: {node: '>= 8.x.x'}
+    peerDependencies:
+      moleculer: ^0.12.0 || ^0.13.0 || ^0.14.0 || ^0.15.0
+      sequelize: ^5.9.4 || ^6.7.0
+
+  moleculer-db@0.8.28:
+    resolution: {integrity: sha512-YUlCyIojbPr9RE20p7GBOduiPgaVYgWxkgi83kUKhNXPHByujm+7gsnEv0m8nIGoJo6+LUPVmKD500M8kco7og==}
+    engines: {node: '>= 8.x.x'}
+    peerDependencies:
+      moleculer: ^0.12.0 || ^0.13.0 || ^0.14.0 || ^0.15.0
 
   moleculer@0.14.34:
     resolution: {integrity: sha512-xILOSPqo4ATKhhAhvQXRBgMVbaKHPKBvgYasihVCmPGYK7QCeLnoOV+MD+a4/VmyEjLaAOzlIQBSYIUu0mwg9Q==}
@@ -1425,6 +1481,12 @@ packages:
         optional: true
       winston:
         optional: true
+
+  moment-timezone@0.5.47:
+    resolution: {integrity: sha512-UbNt/JAWS0m/NJOebR0QMRHBk0hu03r5dx9GK8Cs0AS3I81yDcOc9k+DytPItgVvBP7J6Mf6U2n3BPAacAV9oA==}
+
+  moment@2.30.1:
+    resolution: {integrity: sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==}
 
   moo-server@1.3.0:
     resolution: {integrity: sha512-9A8/eor2DXwpv1+a4pZAAydqLFVrWoKoO1fzdzqLUhYVXAO1Kgd1FR2gFZi7YdHzF0s4W8cDNwCfKJQrvLqxDw==}
@@ -1534,6 +1596,9 @@ packages:
     resolution: {integrity: sha512-AVbw3UJ2e9bq64vSaS9Am0fje1Pa8pbGqTTsmXfaIiMpnr5DlDhfJOuLj9Sf95ZPVDAUerDfEk88MPmPe7UCQg==}
     engines: {node: '>=0.10.0'}
 
+  pg-connection-string@2.7.0:
+    resolution: {integrity: sha512-PI2W9mv53rXJQEOb8xNR8lH7Hr+EKa6oJa38zsK0S/ky2er16ios1wLKhZyxzD7jUReiWokc9WK5nxSnC7W1TA==}
+
   picocolors@1.1.0:
     resolution: {integrity: sha512-TQ92mBOW0l3LeMeyLV6mzy/kWr8lkd/hp3mTg7wYK7zJhuBStmGMBG0BdeDZS/dZx1IukaX6Bk11zcln25o1Aw==}
 
@@ -1610,6 +1675,9 @@ packages:
   resolve-pkg-maps@1.0.0:
     resolution: {integrity: sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw==}
 
+  retry-as-promised@7.0.4:
+    resolution: {integrity: sha512-XgmCoxKWkDofwH8WddD0w85ZfqYz+ZHlr5yo+3YUCfycWawU56T5ckWXsScsj5B8tqUcIG67DxXByo3VUgiAdA==}
+
   retry@0.12.0:
     resolution: {integrity: sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow==}
     engines: {node: '>= 4'}
@@ -1646,6 +1714,43 @@ packages:
     resolution: {integrity: sha512-oVekP1cKtI+CTDvHWYFUcMtsK/00wmAEfyqKfNdARm8u1wNVhSgaX7A8d4UuIlUI5e84iEwOhs7ZPYRmzU9U6A==}
     engines: {node: '>=10'}
     hasBin: true
+
+  sequelize-pool@7.1.0:
+    resolution: {integrity: sha512-G9c0qlIWQSK29pR/5U2JF5dDQeqqHRragoyahj/Nx4KOOQ3CPPfzxnfqFPCSB7x5UgjOgnZ61nSxz+fjDpRlJg==}
+    engines: {node: '>= 10.0.0'}
+
+  sequelize@6.37.5:
+    resolution: {integrity: sha512-10WA4poUb3XWnUROThqL2Apq9C2NhyV1xHPMZuybNMCucDsbbFuKg51jhmyvvAUyUqCiimwTZamc3AHhMoBr2Q==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      ibm_db: '*'
+      mariadb: '*'
+      mysql2: '*'
+      oracledb: '*'
+      pg: '*'
+      pg-hstore: '*'
+      snowflake-sdk: '*'
+      sqlite3: '*'
+      tedious: '*'
+    peerDependenciesMeta:
+      ibm_db:
+        optional: true
+      mariadb:
+        optional: true
+      mysql2:
+        optional: true
+      oracledb:
+        optional: true
+      pg:
+        optional: true
+      pg-hstore:
+        optional: true
+      snowflake-sdk:
+        optional: true
+      sqlite3:
+        optional: true
+      tedious:
+        optional: true
 
   set-blocking@2.0.0:
     resolution: {integrity: sha512-KiKBS8AnWGEyLzofFfmvKwpdPzqiy16LvQfK3yv/fVH7Bj13/wl3JSR1J+rfgRE9q7xUJK4qvgS8raSOeLUehw==}
@@ -1803,6 +1908,9 @@ packages:
     resolution: {integrity: sha512-/OaKK0xYrs3DmxRYqL/yDc+FxFUVYhDlXMhRmv3z915w2HF1tnN1omB354j8VUGO/hbRzyD6Y3sA7v7GS/ceog==}
     engines: {node: '>=4'}
 
+  toposort-class@1.0.1:
+    resolution: {integrity: sha512-OsLcGGbYF3rMjPUf8oKktyvCiUxSbqMMS39m33MAjLTC1DVIH6x3WSt63/M77ihI09+Sdfk1AXvfhCEeUmC7mg==}
+
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
 
@@ -1852,6 +1960,14 @@ packages:
   util@0.12.5:
     resolution: {integrity: sha512-kZf/K6hEIrWHI6XqOFUiiMa+79wE/D8Q+NCNAWclkyg3b4d2k7s0QGepNjiABc+aR3N1PAyHL7p6UcLY6LmrnA==}
 
+  uuid@8.3.2:
+    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    hasBin: true
+
+  validator@13.12.0:
+    resolution: {integrity: sha512-c1Q0mCiPlgdTVVVIJIrBuxNicYE+t/7oKeI9MWLj3fh/uq2Pxh/3eeWbVZ4OcGW1TUf53At0njHw5SMdA3tmMg==}
+    engines: {node: '>= 0.10'}
+
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
@@ -1891,6 +2007,9 @@ packages:
   winston@3.15.0:
     resolution: {integrity: sha512-RhruH2Cj0bV0WgNL+lOfoUBI4DVfdUNjVnJGVovWZmrcKtrFTTRzgXYK2O9cymSGjrERCtaAeHwMNnUWXlwZow==}
     engines: {node: '>= 12.0.0'}
+
+  wkx@0.5.0:
+    resolution: {integrity: sha512-Xng/d4Ichh8uN4l0FToV/258EjMGU9MGcA0HV2d9B/ZpZB3lqQm7nkOdZdm5GhKtLLhAE7PiVQwN4eN+2YJJUg==}
 
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
@@ -2231,7 +2350,7 @@ snapshots:
 
   '@moleculer-lab/agent@git+ssh://git@github.com/mishatre/moleculer-lab.git#ed5bd11ecbe177a55dbc914f0cfee7cb2a9c2afe&path:/packages/agent(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))':
     dependencies:
-      moldecor: https://codeload.github.com/mishatre/moldecor/tar.gz/06cc9bb0dd6454c22dfd99978246e6032f2ababd(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))
+      moldecor: https://codeload.github.com/mishatre/moldecor/tar.gz/4631ac580a8591fa94e56aec4870d6b67805926b(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))
       moleculer: 0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)
       socket.io: 4.8.0
       sqlite3: 5.1.7
@@ -2271,6 +2390,14 @@ snapshots:
       rimraf: 3.0.2
     optional: true
 
+  '@seald-io/binary-search-tree@1.0.3': {}
+
+  '@seald-io/nedb@3.1.0':
+    dependencies:
+      '@seald-io/binary-search-tree': 1.0.3
+      localforage: 1.10.0
+      util: 0.12.5
+
   '@socket.io/component-emitter@3.1.2': {}
 
   '@telegraf/types@7.1.0': {}
@@ -2296,13 +2423,21 @@ snapshots:
     dependencies:
       '@types/node': 20.16.11
 
+  '@types/debug@4.1.12':
+    dependencies:
+      '@types/ms': 2.1.0
+
   '@types/lodash@4.17.10': {}
+
+  '@types/ms@2.1.0': {}
 
   '@types/node@20.16.11':
     dependencies:
       undici-types: 6.19.8
 
   '@types/triple-beam@1.3.5': {}
+
+  '@types/validator@13.12.2': {}
 
   '@xmldom/is-dom-node@1.0.1': {}
 
@@ -2678,6 +2813,8 @@ snapshots:
 
   dotenv@16.4.5: {}
 
+  dottie@2.0.6: {}
+
   emoji-regex@8.0.0:
     optional: true
 
@@ -2992,6 +3129,8 @@ snapshots:
 
   ieee754@1.2.1: {}
 
+  immediate@3.0.6: {}
+
   imurmurhash@0.1.4:
     optional: true
 
@@ -3002,6 +3141,8 @@ snapshots:
 
   infer-owner@1.0.4:
     optional: true
+
+  inflection@1.13.4: {}
 
   inflight@1.0.6:
     dependencies:
@@ -3095,6 +3236,14 @@ snapshots:
   kuler@2.0.0: {}
 
   leven@2.1.0: {}
+
+  lie@3.1.1:
+    dependencies:
+      immediate: 3.0.6
+
+  localforage@1.10.0:
+    dependencies:
+      lie: 3.1.1
 
   lodash.defaults@4.2.0: {}
 
@@ -3223,12 +3372,23 @@ snapshots:
 
   mkdirp@1.0.4: {}
 
-  moldecor@https://codeload.github.com/mishatre/moldecor/tar.gz/06cc9bb0dd6454c22dfd99978246e6032f2ababd(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)):
+  moldecor@https://codeload.github.com/mishatre/moldecor/tar.gz/4631ac580a8591fa94e56aec4870d6b67805926b(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)):
     dependencies:
       moleculer: 0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)
       reflect-metadata: 0.2.2
     optionalDependencies:
       moleculer-gateway: link:../moleculer-gateway
+
+  moleculer-db-adapter-sequelize@0.2.19(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0))(sequelize@6.37.5(sqlite3@5.1.7)):
+    dependencies:
+      moleculer: 0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)
+      sequelize: 6.37.5(sqlite3@5.1.7)
+
+  moleculer-db@0.8.28(moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)):
+    dependencies:
+      '@seald-io/nedb': 3.1.0
+      lodash: 4.17.21
+      moleculer: 0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0)
 
   moleculer@0.14.34(cbor-x@1.6.0)(debug@4.3.7)(encoding@0.1.13)(ioredis@5.4.1)(nats@2.28.2)(winston@3.15.0):
     dependencies:
@@ -3250,6 +3410,12 @@ snapshots:
       winston: 3.15.0
     transitivePeerDependencies:
       - encoding
+
+  moment-timezone@0.5.47:
+    dependencies:
+      moment: 2.30.1
+
+  moment@2.30.1: {}
 
   moo-server@1.3.0: {}
 
@@ -3360,6 +3526,8 @@ snapshots:
 
   path-is-absolute@1.0.1: {}
 
+  pg-connection-string@2.7.0: {}
+
   picocolors@1.1.0: {}
 
   possible-typed-array-names@1.0.0: {}
@@ -3443,6 +3611,8 @@ snapshots:
 
   resolve-pkg-maps@1.0.0: {}
 
+  retry-as-promised@7.0.4: {}
+
   retry@0.12.0:
     optional: true
 
@@ -3471,6 +3641,31 @@ snapshots:
   sax@1.4.1: {}
 
   semver@7.6.3: {}
+
+  sequelize-pool@7.1.0: {}
+
+  sequelize@6.37.5(sqlite3@5.1.7):
+    dependencies:
+      '@types/debug': 4.1.12
+      '@types/validator': 13.12.2
+      debug: 4.3.7
+      dottie: 2.0.6
+      inflection: 1.13.4
+      lodash: 4.17.21
+      moment: 2.30.1
+      moment-timezone: 0.5.47
+      pg-connection-string: 2.7.0
+      retry-as-promised: 7.0.4
+      semver: 7.6.3
+      sequelize-pool: 7.1.0
+      toposort-class: 1.0.1
+      uuid: 8.3.2
+      validator: 13.12.0
+      wkx: 0.5.0
+    optionalDependencies:
+      sqlite3: 5.1.7
+    transitivePeerDependencies:
+      - supports-color
 
   set-blocking@2.0.0:
     optional: true
@@ -3721,6 +3916,8 @@ snapshots:
 
   to-fast-properties@2.0.0: {}
 
+  toposort-class@1.0.1: {}
+
   tr46@0.0.3: {}
 
   triple-beam@1.4.1: {}
@@ -3767,6 +3964,10 @@ snapshots:
       is-generator-function: 1.0.10
       is-typed-array: 1.1.13
       which-typed-array: 1.1.15
+
+  uuid@8.3.2: {}
+
+  validator@13.12.0: {}
 
   vary@1.1.2: {}
 
@@ -3826,6 +4027,10 @@ snapshots:
       stack-trace: 0.0.10
       triple-beam: 1.4.1
       winston-transport: 4.8.0
+
+  wkx@0.5.0:
+    dependencies:
+      '@types/node': 20.16.11
 
   wrappy@1.0.2: {}
 

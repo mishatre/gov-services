@@ -4,6 +4,13 @@ export enum ErrorTypes {
     ERR_TOKEN_NOT_PROVIDED = 'ERR_TOKEN_NOT_PROVIDED',
     ERR_TOKEN_NOT_FOUND = 'ERR_TOKEN_NOT_FOUND',
     ERR_INVALID_TOKEN = 'ERR_INVALID_TOKEN',
+    ERR_NOT_FOUND = 'ERR_NOT_FOUND',
+}
+
+export class NotFoundError extends Errors.MoleculerError {
+    constructor(type?: string, data?: unknown) {
+        super('NotFound', 404, type || ErrorTypes.ERR_NOT_FOUND, data);
+    }
 }
 
 export class TokenNotFoundError extends Errors.MoleculerError {
