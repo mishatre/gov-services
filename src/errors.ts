@@ -1,6 +1,7 @@
 import { Errors } from 'moleculer';
 
 export enum ErrorTypes {
+    ERR_TOKEN_NOT_PROVIDED = 'ERR_TOKEN_NOT_PROVIDED',
     ERR_TOKEN_NOT_FOUND = 'ERR_TOKEN_NOT_FOUND',
     ERR_INVALID_TOKEN = 'ERR_INVALID_TOKEN',
 }
@@ -8,6 +9,12 @@ export enum ErrorTypes {
 export class TokenNotFoundError extends Errors.MoleculerError {
     constructor(type?: string, data?: unknown) {
         super('TokenNotFound', 404, type || ErrorTypes.ERR_TOKEN_NOT_FOUND, data);
+    }
+}
+
+export class TokenNotProvidedError extends Errors.MoleculerError {
+    constructor(type?: string, data?: unknown) {
+        super('TokenNotProvided', 404, type || ErrorTypes.ERR_TOKEN_NOT_PROVIDED, data);
     }
 }
 
