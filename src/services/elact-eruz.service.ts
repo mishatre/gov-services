@@ -20,7 +20,7 @@ interface dbTable {
     mixins: [DbService],
     adapter: new SqlAdapter({
         dialect: 'sqlite',
-        storage: './database/elact-eruz.sqlite',
+        storage: './.data/elact-eruz.sqlite',
     }),
     model: {
         name: 'records',
