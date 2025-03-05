@@ -2,7 +2,7 @@ name: eis
 
 services:
     elact-docs:
-        image: eis
+        image: ghcr.io/mishatre/eis
         env_file: .env
         environment:
             - NODEID=eis.elact-docs
@@ -10,7 +10,7 @@ services:
             - DOPPLER_TOKEN
 
     elact-utils:
-        image: eis
+        image: ghcr.io/mishatre/eis
         env_file: .env
         environment:
             - NODEID=eis.elact-utils
@@ -18,7 +18,7 @@ services:
             - DOPPLER_TOKEN
 
     zakupki-rss:
-        image: eis
+        image: ghcr.io/mishatre/eis
         env_file: .env
         environment:
             - NODEID=eis.zakupki-rss
@@ -26,11 +26,11 @@ services:
             - DOPPLER_TOKEN
 
     elact-eruz:
-        image: eis
+        image: ghcr.io/mishatre/eis
         env_file: .env
         environment:
             - NODEID=eis.elact-eruz
             - SERVICES=elact-eruz.service.mjs
             - DOPPLER_TOKEN
         volumes:
-            - ./database:/usr/src/app/database:rw
+            - ./.data:/usr/src/app/.data:rw
