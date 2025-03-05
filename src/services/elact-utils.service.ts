@@ -6,6 +6,8 @@ import { NotFoundError } from '../errors.js';
 import { documentKind } from '../utils/index.js';
 import { GetObjectListRequest, GetObjectListResponse } from './elact-docs.service.js';
 
+interface Settings {}
+
 interface ExtractPrintFormsProps {
     url: string;
 }
@@ -37,7 +39,7 @@ const DOCUMENT_MAP = {
 
     dependencies: [],
 })
-export default class ElactDocsService extends MoleculerService {
+export default class ElactDocsService extends MoleculerService<Settings> {
     @action({
         name: 'getObjectStatus',
         params: {

@@ -21,7 +21,7 @@ import {
 import { getHighestVersionFolder, getRequestShim } from '../utils/index.js';
 import { executeSoapRequest } from '../utils/soap.js';
 
-interface EisDocsServiceSettings {
+interface Settings {
     testMode?: boolean;
     eis: {
         schemas: string;
@@ -117,7 +117,7 @@ const subsystemTypes = [
         },
     },
 })
-export default class EisDocsService extends MoleculerService<EisDocsServiceSettings> {
+export default class EisDocsService extends MoleculerService<Settings> {
     // @ts-expect-error
     private clientDocuments: Client;
 

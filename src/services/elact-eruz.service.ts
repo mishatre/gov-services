@@ -6,7 +6,7 @@ import Sequelize from 'sequelize';
 
 import { NotFoundError, TokenNotFoundError } from '../errors.js';
 
-interface Settings extends ServiceSettingSchema {}
+interface Settings {}
 
 interface dbTable {
     regNum: string;

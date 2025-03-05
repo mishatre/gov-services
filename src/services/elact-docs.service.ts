@@ -24,7 +24,7 @@ import {
 } from '../utils/index.js';
 import { executeSoapRequest } from '../utils/soap.js';
 
-interface ElactDocsServiceSettings {
+interface Settings {
     tokenService: string;
     elact: {
         schemas: string;
@@ -75,7 +75,7 @@ export type GetObjectInfoResponse = {
         },
     },
 })
-export default class ElactDocsService extends MoleculerService<ElactDocsServiceSettings> {
+export default class ElactDocsService extends MoleculerService<Settings> {
     // @ts-expect-error
     private clientDocuments: Client;
     private useTokenService = false;

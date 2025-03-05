@@ -4,6 +4,16 @@ import Parser from 'rss-parser';
 
 import { fromShortDate, makeShortDate } from '../utils/date.js';
 
+interface Settings {
+    baseUrl: string;
+    rss: {
+        contract: string;
+        order: string;
+    };
+}
+
+// Actions
+
 export type SearchContractsInfoRequest = {
     fromDate?: string | number | Date;
     toDate?: string | number | Date;
@@ -62,14 +72,6 @@ enum ContractStatus {
     Unknown = 'UNKNOWN',
 }
 
-interface ZakupkiRSSServiceSettings {
-    baseUrl: string;
-    rss: {
-        contract: string;
-        order: string;
-    };
-}
-
 @service({
     name: 'zakupki-rss',
     settings: {
@@ -80,7 +82,7 @@ interface ZakupkiRSSServiceSettings {
         },
     },
 })
-export default class ZakupkiRSSService extends MoleculerService<ZakupkiRSSServiceSettings> {
+export default class ZakupkiRSSService extends MoleculerService<Settings> {
     @action({
         name: 'searchContractsInfo',
         params: {
