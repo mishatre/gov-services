@@ -2,6 +2,10 @@ import { action, method, service, started } from 'moldecor';
 import { Context, Service as MoleculerService } from 'moleculer';
 import { parse } from 'node-html-parser';
 
+import { NotFoundError } from '../errors.js';
+import { documentKind } from '../utils/index.js';
+import { GetObjectListRequest, GetObjectListResponse } from './elact-docs.service.js';
+
 interface ExtractPrintFormsProps {
     url: string;
 }
@@ -34,6 +38,41 @@ const DOCUMENT_MAP = {
     dependencies: [],
 })
 export default class ElactDocsService extends MoleculerService {
+    @action({
+        name: 'getObjectStatus',
+        params: {
+            $$root: true,
+            type: 'object',
+            strict: true,
+            params: {
+                regNum: 'string|numeric|length:8',
+                documentKind: { type: 'enum', values: documentKind },
+                objectId: 'uuid',
+            },
+        },
+    })
+    public async getObjectStatus(
+        ctx: Context<{ regNum: string; documentKind: string; objectId: string }>,
+    ) {
+        const foundObjects = await ctx.call<GetObjectListResponse, GetObjectListRequest>(
+            'elact-docs.getObjectList',
+            ctx.params,
+        );
+
+        if (foundObjects.items.length === 0) {
+            throw new NotFoundError();
+        }
+
+        const item = foundObjects.items[0];
+
+        return {
+            objectId: item.objectId,
+            documentKind: item.documentKind,
+            versionNumber: item.versionNumber,
+            status: item.status,
+        };
+    }
+
     @action({
         name: 'downloadFile',
         params: {
@@ -137,12 +176,12 @@ export default class ElactDocsService extends MoleculerService {
     }
 
     @method
-    private async extractHTMLFilesFromHTMLPage(htmlString: string) {
-        const result = [] as ExtractPrintFormsReturnType;
-
+    private async extractHTMLFilesFromHTMLPage(
+        htmlString: string,
+    ): Promise<ExtractPrintFormsReturnType> {
         const root = parse(htmlString);
         if (!root) {
-            return result;
+            return [];
         }
 
         const elements = root.getElementsByTagName('button') || [];
@@ -171,7 +210,7 @@ export default class ElactDocsService extends MoleculerService {
             };
         });
 
-        return (await Promise.all(tasks)).filter(Boolean); // Remove `null` values
+        return (await Promise.all(tasks)).filter(Boolean) as ExtractPrintFormsReturnType; // Remove `null` values
     }
 
     @method
