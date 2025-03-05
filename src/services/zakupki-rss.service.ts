@@ -5,22 +5,26 @@ import Parser from 'rss-parser';
 import { fromShortDate, makeShortDate } from '../utils/date.js';
 
 export type SearchContractsInfoRequest = {
-    fromDate: string | number | Date;
-    toDate: string | number | Date;
+    fromDate?: string | number | Date;
+    toDate?: string | number | Date;
+    regNum?: string;
     contractNumber?: string;
     supplier?: string;
 };
 
-export type SearchContractsInfoResponse = Array<{
-    url: string | undefined;
-    publishedAt: Date | undefined;
-    updatedAt: Date | undefined;
-    contractRegNum: string;
-    contractNum: string | undefined;
-    price: string | undefined;
-    currency: string | undefined;
+export type SearchContractsInfoResponse = {
+    regNum: string;
+    contractNumber: string;
+    contractDate: Date;
+    client: string;
+    price: number;
+    currency: string;
+    status: ContractStatus;
     invalidated: boolean;
-}>;
+    publishedAt: Date;
+    updatedAt: Date;
+    url: string;
+}[];
 
 export type SearchOrdersInfoRequest = {
     fromDate: string | number | Date;
@@ -45,22 +49,50 @@ export type SearchOrdersInfoResponse = Array<{
     content: Map<string, string>;
 }>;
 
+enum RSSType {
+    Contract,
+    Order,
+}
+
+enum ContractStatus {
+    Execution = 'EXECUTION',
+    ExecutionTerminated = 'EXECUTION_TERMINATED',
+    ExecutionCompleted = 'EXECUTION_COMPLETED',
+    Invalidated = 'INVALIDATED',
+    Unknown = 'UNKNOWN',
+}
+
+interface ZakupkiRSSServiceSettings {
+    baseUrl: string;
+    rss: {
+        contract: string;
+        order: string;
+    };
+}
+
 @service({
     name: 'zakupki-rss',
-    settings: {},
+    settings: {
+        baseUrl: 'https://zakupki.gov.ru/',
+        rss: {
+            contract: '/epz/contract/search/rss',
+            order: '/epz/order/extendedsearch/rss.html',
+        },
+    },
 })
-export default class ZakupkiRSSService extends MoleculerService {
+export default class ZakupkiRSSService extends MoleculerService<ZakupkiRSSServiceSettings> {
     @action({
         name: 'searchContractsInfo',
         params: {
-            fromDate: 'date|convert',
-            toDate: 'date|convert',
+            fromDate: 'date|convert|optional',
+            toDate: 'date|convert|optional',
+            regNum: 'string|optional',
             contractNumber: 'string|optional',
             supplier: 'string|optional',
         },
     })
     public async searchContractsInfo(
-        ctx: Context<{ fromDate: Date; toDate: Date; contractNumber?: string; supplier?: string }>,
+        ctx: Context<SearchContractsInfoRequest>,
     ): Promise<SearchContractsInfoResponse> {
         const searchParams = new URLSearchParams({
             morphology: 'on',
@@ -73,62 +105,76 @@ export default class ZakupkiRSSService extends MoleculerService {
             sortBy: 'UPDATE_DATE',
             pageNumber: '1',
             sortDirection: 'true',
-            recordsPerPage: '_10',
+            recordsPerPage: '_200',
             showLotsInfoHidden: 'false',
         });
-        searchParams.set('updateDateFrom', makeShortDate(ctx.params.fromDate));
-        searchParams.set('updateDateFrom', makeShortDate(ctx.params.toDate));
 
-        if (ctx.params.contractNumber) {
+        if ('fromDate' in ctx.params && ctx.params.fromDate) {
+            searchParams.set('updateDateFrom', makeShortDate(ctx.params.fromDate as Date));
+        }
+        if ('toDate' in ctx.params && ctx.params.toDate) {
+            searchParams.set('updateDateFrom', makeShortDate(ctx.params.toDate as Date));
+        }
+        if ('regNum' in ctx.params && ctx.params.regNum) {
+            searchParams.set('searchString', ctx.params.regNum);
+        }
+        if ('contractNumber' in ctx.params && ctx.params.contractNumber) {
             searchParams.set('contractInputNameContractNumber', ctx.params.contractNumber);
         }
-
-        if (ctx.params.supplier) {
+        if ('supplier' in ctx.params && ctx.params.supplier) {
             searchParams.set('supplierTitle', ctx.params.supplier);
         }
 
-        const url = new URL('https://zakupki.gov.ru/epz/contract/search/rss');
-        url.search = searchParams.toString();
+        const url = this.buildURL(RSSType.Contract, searchParams);
 
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-            });
+        const response = await fetch(url, {
+            method: 'GET',
+        });
 
-            const text = await response.text();
+        const text = await response.text();
 
-            const parser = new Parser();
-            const result = await parser.parseString(text);
+        const parser = new Parser();
+        const result = await parser.parseString(text);
 
-            const contracts = [];
-            for (const item of result.items) {
-                if (item.contentSnippet && item.title) {
-                    const content = this.parseContent(item.contentSnippet);
-
-                    const contractNum = content.get('Контракт №');
-                    const price = content.get('Цена контракта');
-                    const currency = content.get('Валюта');
-                    const invalidated =
-                        content.get('Контракт признан недействительным')?.toLowerCase() !== 'нет';
-                    const updated = content.get('Обновлено');
-
-                    contracts.push({
-                        url: item.link,
-                        publishedAt: item.isoDate ? new Date(item.isoDate) : undefined,
-                        updatedAt: updated ? fromShortDate(updated) : undefined,
-                        contractRegNum: item.title.replace('№ ', ''),
-                        contractNum,
-                        price,
-                        currency,
-                        invalidated,
-                    });
-                }
+        const contracts = [];
+        for (const item of result.items) {
+            if (!item.contentSnippet || !item.title) {
+                continue;
             }
 
-            return contracts;
-        } catch (error) {
-            return [];
+            const content = this.parseContent(item.contentSnippet);
+            const foundResult = content.get('Найденный результат');
+            if (!foundResult) {
+                continue;
+            }
+
+            const regNum = item.title.replace('№', '').trim();
+            const [contractNumber, contractDate] = foundResult.get('Контракт №').split(' от ');
+            const price = foundResult.get('Цена контракта');
+            const invalidated =
+                foundResult.get('Контракт признан недействительным')?.toLowerCase() !== 'нет';
+            const published = foundResult.get('Размещено');
+            const updated = foundResult.get('Обновлено');
+
+            const link =
+                item.link || `/epz/contract/contractCard/common-info.html?reestrNumber=${regNum}`;
+
+            contracts.push({
+                regNum,
+                contractNumber,
+                contractDate: fromShortDate(contractDate),
+                client: foundResult.get('Заказчик'),
+                price: parseFloat(price.replace(/\s/g, '').replace(',', '.')),
+                currency: foundResult.get('Валюта'),
+                status: this.parseContractStatus(foundResult.get('Статус контракта')),
+                invalidated,
+                publishedAt: item.isoDate ? new Date(item.isoDate) : fromShortDate(published),
+                updatedAt: updated && fromShortDate(updated),
+                url: new URL(link, this.settings.baseUrl).toString(),
+            });
         }
+
+        return contracts;
     }
 
     @action({
@@ -166,20 +212,17 @@ export default class ZakupkiRSSService extends MoleculerService {
             orderPlacement94_2: '0',
         });
 
-        if (ctx.params.participant) {
+        if ('participant' in ctx.params && ctx.params.participant) {
             searchParams.set('participantName', ctx.params.participant);
         }
-
-        if (ctx.params.fromDate) {
+        if ('fromDate' in ctx.params && ctx.params.fromDate) {
             searchParams.set('updateDateFrom', makeShortDate(ctx.params.fromDate));
         }
-
-        if (ctx.params.toDate) {
+        if ('toDate' in ctx.params && ctx.params.toDate) {
             searchParams.set('updateDateTo', makeShortDate(ctx.params.toDate));
         }
 
-        const url = new URL('https://zakupki.gov.ru/epz/order/extendedsearch/rss.html');
-        url.search = searchParams.toString();
+        const url = this.buildURL(RSSType.Order, searchParams);
 
         try {
             const response = await fetch(url, {
@@ -224,20 +267,61 @@ export default class ZakupkiRSSService extends MoleculerService {
     }
 
     @method
+    private buildURL(type: RSSType, searchParams: URLSearchParams) {
+        const url = new URL(this.getRSSPartByType(type), this.settings.baseUrl);
+        url.search = searchParams.toString();
+
+        return url;
+    }
+
+    @method
+    private getRSSPartByType(type: RSSType) {
+        switch (type) {
+            case RSSType.Order:
+                return this.settings.rss.order;
+            case RSSType.Contract:
+                return this.settings.rss.contract;
+            default:
+                throw new Error('Incorrect RSS type');
+        }
+    }
+
+    @method
     private parseContent(content: string) {
         const parts = content.split('\n');
 
-        const contentMap = new Map<string, string>();
+        const rootContentMap = new Map<string, any>();
+        let currengContentMap = rootContentMap;
         for (const part of parts) {
-            const [key, value] = part.split(':');
+            const [key, value] = part
+                .trim()
+                .split(':')
+                .map((v) => v.trim());
             if (!value) {
-                contentMap.set('title', key.trim());
+                currengContentMap = new Map<string, string>();
+                rootContentMap.set(key, currengContentMap);
             } else {
-                contentMap.set(key.trim(), value.trim());
+                currengContentMap.set(key, value);
             }
         }
 
-        return contentMap;
+        return rootContentMap;
+    }
+
+    @method
+    private parseContractStatus(status: string) {
+        switch (status.toLowerCase()) {
+            case 'Исполнение'.toLowerCase():
+                return ContractStatus.Execution;
+            case 'Исполнение завершено'.toLowerCase():
+                return ContractStatus.ExecutionTerminated;
+            case 'Исполнение прекращено'.toLowerCase():
+                return ContractStatus.ExecutionCompleted;
+            case 'Аннулировано'.toLowerCase():
+                return ContractStatus.Invalidated;
+            default:
+                return ContractStatus.Unknown;
+        }
     }
 
     @started
