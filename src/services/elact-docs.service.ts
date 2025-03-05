@@ -16,7 +16,12 @@ import {
     LkpGetObjectListResponse,
     LkpGetParticipantInfoResponse,
 } from '../types.js';
-import { getHighestVersionFolder, getRequestShim, mapToObject } from '../utils/index.js';
+import {
+    documentKind,
+    getHighestVersionFolder,
+    getRequestShim,
+    mapToObject,
+} from '../utils/index.js';
 import { executeSoapRequest } from '../utils/soap.js';
 
 interface ElactDocsServiceSettings {
@@ -45,28 +50,8 @@ export type GetObjectInfoResponse = {
     ФайлПакет: FilePacket;
 };
 
-const documentKind = [
-    'ON_NSCHFDOPPR',
-    'ON_NSCHFDOPPOK',
-    'ON_KORSCHFDOPPR',
-    'ON_KORSCHFDOPPOK',
-    'ON_NKORSCHFDOPPR',
-    'ON_NKORSCHFDOPPOK',
-    'DP_IZVUCH',
-    'DP_UVUTOCH',
-    'DP_UVOBZH',
-    'DP_PROTZ',
-    'DP_PDPOL',
-    'DP_IZVPOL',
-    'DP_KVITIZMSTATUS',
-    'ON_AKTREZRABP',
-    'ON_AKTREZRABZ',
-    'elActUnstructuredSupplierTitle',
-    'elActUnstructuredCustomerTitle',
-];
-
 @service({
-    name: 'elact-docs-test',
+    name: 'elact-docs',
 
     metadata: {
         $description: `Запросы в ЛКП (ЭлАкт)`,

@@ -124,3 +124,23 @@ export async function getHighestVersionFolder(dirPath: string) {
     // Return the highest version folder
     return folders[0];
 }
+
+export const documentKind = [
+    'ON_NSCHFDOPPR',
+    'ON_NSCHFDOPPOK',
+    'ON_KORSCHFDOPPR',
+    'ON_KORSCHFDOPPOK',
+    'ON_NKORSCHFDOPPR',
+    'ON_NKORSCHFDOPPOK',
+    'DP_IZVUCH',
+    'DP_UVUTOCH',
+    'DP_UVOBZH',
+    'DP_PROTZ',
+    'DP_PDPOL',
+    'DP_IZVPOL',
+    'DP_KVITIZMSTATUS',
+    'ON_AKTREZRABP',
+    'ON_AKTREZRABZ',
+    'elActUnstructuredSupplierTitle',
+    'elActUnstructuredCustomerTitle',
+];
