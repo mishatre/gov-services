@@ -31,7 +31,7 @@ import './src/lab/index.js';
  */
 const brokerConfig: BrokerOptions = {
     // Namespace of nodes to segment your nodes on the same network.
-    namespace: 'dev',
+    namespace: 'veamosl-services',
     // Unique node identifier. Must be unique in a namespace.
     // nodeID: '123',
     // Custom metadata store. Store here what you want. Accessing: `this.broker.metadata`
@@ -58,7 +58,6 @@ const brokerConfig: BrokerOptions = {
     // Available values: trace, debug, info, warn, error, fatal
     logLevel: {
         '**': 'info',
-        'EIS-UPDATE': 'debug',
     },
 
     // Define transporter.

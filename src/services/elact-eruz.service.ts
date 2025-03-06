@@ -17,10 +17,20 @@ interface dbTable {
 
 @service({
     name: 'elact-eruz',
+
+    metadata: {
+        $description: `Сервис работы с токен-ключами электронного актирования в ЕИС`,
+        $author: 'Mikhail Tregub',
+        $official: false,
+    },
+
+    settings: {},
+
     mixins: [DbService],
     adapter: new SqlAdapter({
         dialect: 'sqlite',
         storage: './.data/elact-eruz.sqlite',
+        logging: false,
     }),
     model: {
         name: 'records',
@@ -38,9 +48,8 @@ interface dbTable {
             // Options from http://docs.sequelizejs.com/manual/tutorial/models-definition.html
         },
     },
-    settings: {},
+    // Disable all moleculer-db actions
     actions: {
-        // Disable all moleculer-db actions
         find: false,
         count: false,
         list: false,
