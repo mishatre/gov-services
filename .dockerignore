@@ -26,3 +26,4 @@ node_modules
 eruz
 certs
 scripts.sh
+*.csv
