@@ -60,11 +60,13 @@ export type GetObjectInfoResponse = {
     },
 
     settings: {
-        tokenService: process.env.ELACT_DOCS_TOKEN_SERVICE || 'elact-eruz',
+        tokenService: process.env.ELACT_TOKEN_SERVICE || 'elact-eruz',
         elact: {
             schemas: './schemas/elact',
             wsdl: 'WSDL/WebServiceElactsDocsLKP.wsdl',
-            endpoint: process.env.ELACT_SUPPLIER_DOCS ?? '',
+            endpoint:
+                process.env.ELACT_SUPPLIER_DOCS ??
+                'https://int44.zakupki.gov.ru/eis-integration/elact/supplier-docs',
         },
     },
 
@@ -76,8 +78,7 @@ export type GetObjectInfoResponse = {
     },
 })
 export default class ElactDocsService extends MoleculerService<Settings> {
-    // @ts-expect-error
-    private clientDocuments: Client;
+    private soapClient!: Client;
     private useTokenService = false;
 
     @action({
@@ -256,7 +257,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
     @method
     private async executeRequest<R, P extends {} = {}>(method: string, ctx: Context<P>) {
         let [error, content, rawContent] = await executeSoapRequest<R, P>(
-            this.clientDocuments,
+            this.soapClient,
             method,
             this.enforceParametersOrder(ctx.params, method),
             {},
@@ -422,10 +423,10 @@ export default class ElactDocsService extends MoleculerService<Settings> {
             this.settings.elact.wsdl,
         );
 
-        this.clientDocuments = await createClientAsync(pathToWSDL, {
+        this.soapClient = await createClientAsync(pathToWSDL, {
             request: getRequestShim(),
         });
-        this.clientDocuments.setEndpoint(this.settings.elact.endpoint);
+        this.soapClient.setEndpoint(this.settings.elact.endpoint);
 
         this.setIsTokenServiceAvailable();
     }

@@ -104,7 +104,7 @@ const subsystemTypes = [
     name: 'eis-docs',
 
     metadata: {
-        $description: `Сервис отдачи документов из хранилища документов для ФОИВ (без регистрации)`,
+        $description: `Сервис отдачи документов из хранилища документов ЕИС`,
         $author: 'Mikhail Tregub',
     },
 
@@ -113,13 +113,14 @@ const subsystemTypes = [
         eis: {
             schemas: './schemas/eis',
             wsdl: 'GetDocsWS/GetDocsLegalEntity/WSDL/WebServiceGetDocsLE.wsdl',
-            endpoint: 'http://192.168.5.243:8080/eis-integration/services/getDocsLE',
+            endpoint:
+                process.env.EIS_DOCS ??
+                'http://192.168.5.243:8080/eis-integration/services/getDocsLE',
         },
     },
 })
 export default class EisDocsService extends MoleculerService<Settings> {
-    // @ts-expect-error
-    private clientDocuments: Client;
+    private soapClient!: Client;
 
     @action({
         name: 'getDocsByReestrNumber',
@@ -286,7 +287,7 @@ export default class EisDocsService extends MoleculerService<Settings> {
         params: P,
     ) {
         let [error, content, rawContent] = await executeSoapRequest<EISDocsResponse<any>, P>(
-            this.clientDocuments,
+            this.soapClient,
             method,
             params,
             {},
@@ -340,9 +341,9 @@ export default class EisDocsService extends MoleculerService<Settings> {
             this.settings.eis.wsdl,
         );
 
-        this.clientDocuments = await createClientAsync(pathToWSDL, {
+        this.soapClient = await createClientAsync(pathToWSDL, {
             request: getRequestShim(),
         });
-        this.clientDocuments.setEndpoint(this.settings.eis.endpoint);
+        this.soapClient.setEndpoint(this.settings.eis.endpoint);
     }
 }
