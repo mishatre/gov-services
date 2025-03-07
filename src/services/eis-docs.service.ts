@@ -132,7 +132,7 @@ const subsystemTypes = [
             wsdl: 'GetDocsWS/GetDocsLegalEntity/WSDL/WebServiceGetDocsLE.wsdl',
             endpoint:
                 process.env.EIS_DOCS ??
-                'http://192.168.5.243:8080/eis-integration/services/getDocsLE',
+                'https://eruz.zakupki.gov.ru/eis-integration/services/getDocsLE',
         },
     },
 })

@@ -221,11 +221,11 @@ const agent = new Agent({
         dataUrl: 'https://gisp.gov.ru/opendata/files/gispdata-current-pp719-products-structure.csv',
         gqlUrl: 'https://gisp.gov.ru/pp719v2/pub/prod/b/',
         minio: {
-            endPoint: process.env.S3_ENDPOINT ?? '192.168.101.106',
+            endPoint: process.env.S3_ENDPOINT ?? '',
             port: 9000,
             useSSL: process.env.S3_USESSL ? process.env.S3_USESSL.toLowerCase() === 'true' : false,
-            accessKey: process.env.S3_ACCESS_KEY ?? 'LB4NYbgquAz01yFVjt7y',
-            secretKey: process.env.S3_SECRET_KEY ?? 'kdxQ3fTMBNucKwTR7haQV4zfqcyQB08qDZOdfcqg',
+            accessKey: process.env.S3_ACCESS_KEY ?? '',
+            secretKey: process.env.S3_SECRET_KEY ?? '',
         },
     },
 
@@ -595,9 +595,3 @@ export default class GispPP719Service extends MoleculerService<Settings> {
         await this.cleanStaleWriteouts();
     }
 }
-
-// https://gisp.gov.ru/pp719v2/mptapp/view/dl/production/
-// https://gisp.gov.ru/pp719v2/mptapp/view/dl/production_res_valid_only/
-
-// https://gisp.gov.ru/pp719v2/pub/prod/b/
-// {"opt":{"sort":null,"requireTotalCount":true,"searchOperation":"contains",}"searchValue":null,"skip":0,"take":10,"userData":{},"filter":[["res_valid_till",">=","2025-03-03T21:00:00.000Z"],"and",["res_end_date","=",null]]}}
