@@ -1,4 +1,4 @@
-import { BasicResponse, FilePacket } from './basic.ts';
+import { BasicResponse, FilePacket } from './basic.js';
 
 interface LkpObjectInfoType {
     id: string;

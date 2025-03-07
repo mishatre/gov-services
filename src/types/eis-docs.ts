@@ -1,5 +1,5 @@
 // eis-docs util types
-import { BasicResponseWithNoData } from './basic.ts';
+import { BasicResponse, BasicResponseWithNoData } from './basic.js';
 
 interface IndexRequestType {
     id: string;

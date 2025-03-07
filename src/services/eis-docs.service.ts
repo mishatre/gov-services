@@ -72,7 +72,7 @@ export type GetNsiResponse = {
 export type GetDocSignaturesByUrlResponse = {
     items: ExcludeErrorInfo<
         ExcludeNoData<EISGetDocSignaturesByUrlResponse['dataInfo']>
-    >['archiveUrl'];
+    >['docSignaturesInfo'];
 };
 
 const subsystemTypes = [
