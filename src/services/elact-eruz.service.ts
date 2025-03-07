@@ -8,6 +8,49 @@ import { NotFoundError, TokenNotFoundError } from '../errors.js';
 
 interface Settings {}
 
+export interface CreateRecordParams {
+    regNum: string;
+    inn: string;
+    token: string;
+    skipValidation: boolean;
+}
+
+export interface RemoveRecordParams {
+    regNum: string;
+}
+
+export interface GetTokenParams {
+    regNum: string;
+}
+
+export interface GetINNParams {
+    regNum: string;
+}
+
+export interface CreateRecordParams {
+    regNum: string;
+    inn: string;
+    token: string;
+    skipValidation: boolean;
+}
+
+export interface CreateRecordParams {
+    regNum: string;
+    inn: string;
+    token: string;
+    skipValidation: boolean;
+}
+
+export interface CreateRecordResponse {
+    regNum: string;
+}
+
+export interface RemoveRecordResponse {
+    regNum: string;
+}
+export type GetTokenResponse = string;
+export type GetINNResponse = string;
+
 interface dbTable {
     regNum: string;
     inn: string;
@@ -71,9 +114,7 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             token: 'uuid',
         },
     })
-    public async createRecord(
-        ctx: Context<{ regNum: string; inn: string; token: string; skipValidation: boolean }>,
-    ) {
+    public async createRecord(ctx: Context<CreateRecordParams>): Promise<CreateRecordResponse> {
         const { regNum, inn, token, skipValidation } = ctx.params;
 
         const foundRecord = await this.getRecord(ctx, regNum);
@@ -103,7 +144,7 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             regNum: 'string|numeric|length:8',
         },
     })
-    public async removeRecord(ctx: Context<{ regNum: string }>) {
+    public async removeRecord(ctx: Context<RemoveRecordParams>): Promise<RemoveRecordResponse> {
         await this._remove(ctx, { id: ctx.params.regNum });
         return {
             regNum: ctx.params.regNum,
@@ -119,7 +160,7 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             enabled: true,
         },
     })
-    public async getToken(ctx: Context<{ regNum: string }>) {
+    public async getToken(ctx: Context<GetTokenParams>): Promise<GetTokenResponse> {
         const foundRecord = await this.getRecord(ctx, ctx.params.regNum);
         if (!foundRecord) {
             throw new TokenNotFoundError();
@@ -133,7 +174,7 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             regNum: 'string|numeric|length:8',
         },
     })
-    public async getINN(ctx: Context<{ regNum: string }>) {
+    public async getINN(ctx: Context<GetINNParams>): Promise<GetINNResponse> {
         const foundRecord = await this.getRecord(ctx, ctx.params.regNum);
         if (!foundRecord) {
             throw new NotFoundError();

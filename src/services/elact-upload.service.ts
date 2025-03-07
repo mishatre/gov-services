@@ -13,6 +13,7 @@ import {
 } from '../types/elact-upload.js';
 import { getHighestVersionFolder, getRequestShim } from '../utils/index.js';
 import { executeSoapRequest } from '../utils/soap.js';
+import { GetTokenParams, GetTokenResponse } from './elact-eruz.service.js';
 
 interface Settings {
     tokenService: string;
@@ -158,9 +159,12 @@ export default class ElactUploadService extends MoleculerService<Settings> {
             ctx.locals.usertoken = ctx.meta.token;
             delete ctx.meta.token;
         } else if (this.useTokenService) {
-            const usertoken = await ctx.call(`${this.settings.tokenService}.getToken`, {
-                regNum: ctx.params.regNum,
-            });
+            const usertoken = await ctx.call<GetTokenResponse, GetTokenParams>(
+                `${this.settings.tokenService}.getToken`,
+                {
+                    regNum: ctx.params.regNum,
+                },
+            );
             if (!usertoken) {
                 throw new TokenNotFoundError();
             }
