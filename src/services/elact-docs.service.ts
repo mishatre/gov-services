@@ -5,17 +5,17 @@ import path from 'node:path/posix';
 import { Client, createClientAsync } from 'soap';
 
 import { TokenNotFoundError, TokenNotProvidedError } from '../errors.js';
+import { ExcludeErrorInfo } from '../types/basic.js';
 import {
-    ExcludeErrorInfo,
-    FilePacket,
     LkpGetContractsListRequest,
     LkpGetContractsListResponse,
     LkpGetObjectInfoRequest,
     LkpGetObjectInfoResponse,
     LkpGetObjectListRequest,
     LkpGetObjectListResponse,
+    LkpGetParticipantInfoRequest,
     LkpGetParticipantInfoResponse,
-} from '../types.js';
+} from '../types/elact-docs.js';
 import {
     documentKind,
     getHighestVersionFolder,
@@ -35,20 +35,19 @@ interface Settings {
 
 // Actions
 
-export type GetContractsListRequest = LkpGetContractsListRequest;
-export type GetObjectListRequest = LkpGetObjectListRequest;
-export type GetObjectInfoRequest = LkpGetObjectInfoRequest;
+export type GetContractsListParams = LkpGetContractsListRequest;
+export type GetParticipantInfoParams = LkpGetParticipantInfoRequest;
+export type GetObjectListParams = LkpGetObjectListRequest;
+export type GetObjectInfoParams = LkpGetObjectInfoRequest;
 
 export type GetContractsListResponse = {
     items: ExcludeErrorInfo<LkpGetContractsListResponse>['contractList']['contractInfo'];
 };
+export type GetParticipantInfoResponse = ExcludeErrorInfo<LkpGetParticipantInfoResponse>;
 export type GetObjectListResponse = {
     items: ExcludeErrorInfo<LkpGetObjectListResponse>['objectList']['objectInfo'];
 };
-export type GetObjectInfoResponse = {
-    objectInfo: ExcludeErrorInfo<LkpGetObjectInfoResponse>['objectInfo'];
-    ФайлПакет: FilePacket;
-};
+export type GetObjectInfoResponse = ExcludeErrorInfo<LkpGetObjectInfoResponse>;
 
 @service({
     name: 'elact-docs',
@@ -118,7 +117,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         description: 'Запрос сведений о контрактах поставщика',
     })
     public async getContractsList(
-        ctx: Context<GetContractsListRequest>,
+        ctx: Context<GetContractsListParams>,
     ): Promise<GetContractsListResponse> {
         const [error, content] = await this.executeRequest<LkpGetContractsListResponse>(
             'lkpGetContractsList',
@@ -143,23 +142,18 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         },
         description: 'Запрос сведений о поставщике и его подписантах',
     })
-    public async getParticipantInfo(ctx: Context<{ regNum: string }>) {
-        const [error, content] = await this.executeRequest<LkpGetParticipantInfoResponse>(
-            'lkpGetParticipantInfo',
-            ctx,
-        );
+    public async getParticipantInfo(
+        ctx: Context<GetParticipantInfoParams>,
+    ): Promise<GetParticipantInfoResponse> {
+        const [error, content] = await this.executeRequest<
+            LkpGetParticipantInfoResponse,
+            LkpGetParticipantInfoRequest
+        >('lkpGetParticipantInfo', ctx);
         if (error) {
             throw error;
         }
 
-        const { signersInfo, ...participantInfo } = content.participantInfo;
-        return {
-            ...participantInfo,
-            signersInfo: signersInfo.signerInfo.map(({ authoritysInfo, ...signer }) => ({
-                ...signer,
-                authorityInfo: authoritysInfo.authorityInfo,
-            })),
-        };
+        return content;
     }
 
     @action({
@@ -219,7 +213,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         description:
             'Запрос сведений о частично подписанных / подписанных документах электронного актирования',
     })
-    public async getObjectList(ctx: Context<GetObjectListRequest>): Promise<GetObjectListResponse> {
+    public async getObjectList(ctx: Context<GetObjectListParams>): Promise<GetObjectListResponse> {
         const [error, content] = await this.executeRequest<LkpGetObjectListResponse>(
             'lkpGetObjectList',
             ctx,
@@ -242,7 +236,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         description:
             'Запрос сведений о частично подписанном / подписанном документе электронного актирования',
     })
-    public async getObjectInfo(ctx: Context<GetObjectInfoRequest>): Promise<GetObjectInfoResponse> {
+    public async getObjectInfo(ctx: Context<GetObjectInfoParams>): Promise<GetObjectInfoResponse> {
         const [error, content, rawContent] = await this.executeRequest<LkpGetObjectInfoResponse>(
             'lkpGetObjectInfo',
             ctx,

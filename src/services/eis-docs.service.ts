@@ -4,20 +4,20 @@ import { Context, Errors, Service as MoleculerService } from 'moleculer';
 import path from 'node:path/posix';
 import { Client, createClientAsync } from 'soap';
 
+import { ExcludeErrorInfo, ExcludeNoData } from '../types/basic.js';
 import {
     EISDocsResponse,
-    ExcludeErrorInfo,
-    ExcludeNoData,
+    EISGetDocSignaturesByUrlRequest,
+    EISGetDocSignaturesByUrlResponse,
+    EISGetDocsByOrgRegionRequest,
+    EISGetDocsByOrgRegionResponse,
+    EISGetDocsByReestrNumberRequest,
+    EISGetDocsByReestrNumberResponse,
+    EISGetNsiRequest,
+    EISGetNsiResponse,
     FzTypes,
-    GetDocSignaturesByUrlRequest,
-    GetDocSignaturesByUrlResponse,
-    GetDocsByOrgRegionRequest,
-    GetDocsByOrgRegionResponse,
-    GetDocsByReestrNumberRequest,
-    GetDocsByReestrNumberResponse,
-    GetNsiRequest,
-    GetNsiResponse,
-} from '../types.js';
+    SubsystemType,
+} from '../types/eis-docs.js';
 import { getHighestVersionFolder, getRequestShim } from '../utils/index.js';
 import { executeSoapRequest } from '../utils/soap.js';
 
@@ -33,14 +33,14 @@ interface Settings {
 // Actions
 
 export type GetDocsByReestrNumberParams = {
-    subsystemType: string;
+    subsystemType: SubsystemType;
     reestrNumber: string;
 };
 
 export type GetDocsByOrgRegionParams = {
     fzType: FzTypes;
     orgRegion: string;
-    subsystemType: string;
+    subsystemType: SubsystemType;
     documentType: string;
     periodInfo: {
         exactDate: string;
@@ -56,6 +56,23 @@ export type GetNsiRequestParams = {
 
 export type GetDocSignaturesByUrlParams = {
     archiveUrl: string[];
+};
+
+export type GetDocsByReestrNumberResponse = {
+    items: ExcludeErrorInfo<
+        ExcludeNoData<EISGetDocsByReestrNumberResponse['dataInfo']>
+    >['archiveUrl'];
+};
+export type GetDocsByOrgRegionResponse = {
+    items: ExcludeErrorInfo<ExcludeNoData<EISGetDocsByOrgRegionResponse['dataInfo']>>['archiveUrl'];
+};
+export type GetNsiResponse = {
+    items: { url: string; name: string }[];
+};
+export type GetDocSignaturesByUrlResponse = {
+    items: ExcludeErrorInfo<
+        ExcludeNoData<EISGetDocSignaturesByUrlResponse['dataInfo']>
+    >['archiveUrl'];
 };
 
 const subsystemTypes = [
@@ -130,7 +147,9 @@ export default class EisDocsService extends MoleculerService<Settings> {
         },
         description: 'Запрос формирования в ХД архивов с документами по реестровому номеру',
     })
-    public async getDocsByReestrNumber(ctx: Context<GetDocsByReestrNumberParams>) {
+    public async getDocsByReestrNumber(
+        ctx: Context<GetDocsByReestrNumberParams>,
+    ): Promise<GetDocsByReestrNumberResponse> {
         const { subsystemType, reestrNumber } = ctx.params;
         const params = {
             index: this.createIndexData(),
@@ -138,12 +157,12 @@ export default class EisDocsService extends MoleculerService<Settings> {
                 subsystemType,
                 reestrNumber,
             },
-        } as GetDocsByReestrNumberRequest;
+        };
 
-        const [error, content] = await this.executeRequest<GetDocsByReestrNumberResponse>(
-            'getDocsByReestrNumber',
-            params,
-        );
+        const [error, content] = await this.executeRequest<
+            EISGetDocsByReestrNumberResponse,
+            EISGetDocsByReestrNumberRequest
+        >('getDocsByReestrNumber', params);
         if (error) {
             throw error;
         } else if (!content) {
@@ -181,7 +200,9 @@ export default class EisDocsService extends MoleculerService<Settings> {
         description:
             'Запрос формирования в ХД архивов с документами по региону заказчика и типу документа',
     })
-    public async getDocsByOrgRegion(ctx: Context<GetDocsByOrgRegionParams>) {
+    public async getDocsByOrgRegion(
+        ctx: Context<GetDocsByOrgRegionParams>,
+    ): Promise<GetDocsByOrgRegionResponse> {
         const { fzType, orgRegion, subsystemType, documentType, periodInfo, reestrNumber } =
             ctx.params;
         const params = {
@@ -193,12 +214,12 @@ export default class EisDocsService extends MoleculerService<Settings> {
                 periodInfo,
                 reestrNumber,
             },
-        } as GetDocsByOrgRegionRequest;
+        };
 
-        const [error, content] = await this.executeRequest<GetDocsByOrgRegionResponse>(
-            'getDocsByOrgRegion',
-            params,
-        );
+        const [error, content] = await this.executeRequest<
+            EISGetDocsByOrgRegionResponse,
+            EISGetDocsByOrgRegionRequest
+        >('getDocsByOrgRegion', params);
         if (error) {
             throw error;
         } else if (!content) {
@@ -220,17 +241,19 @@ export default class EisDocsService extends MoleculerService<Settings> {
         },
         description: 'Запрос формирования в ХД архивов с подписями документов',
     })
-    public async getDocSignaturesByUrl(ctx: Context<GetDocSignaturesByUrlParams>) {
+    public async getDocSignaturesByUrl(
+        ctx: Context<GetDocSignaturesByUrlParams>,
+    ): Promise<GetDocSignaturesByUrlResponse> {
         const { archiveUrl } = ctx.params;
         const params = {
             index: this.createIndexData(),
             archiveUrl,
-        } as GetDocSignaturesByUrlRequest;
+        };
 
-        const [error, content] = await this.executeRequest<GetDocSignaturesByUrlResponse>(
-            'getDocSignaturesByUrl',
-            params,
-        );
+        const [error, content] = await this.executeRequest<
+            EISGetDocSignaturesByUrlResponse,
+            EISGetDocSignaturesByUrlRequest
+        >('getDocSignaturesByUrl', params);
         if (error) {
             throw error;
         }
@@ -253,7 +276,7 @@ export default class EisDocsService extends MoleculerService<Settings> {
         },
         description: 'Запрос формирования в хранилище документов (ХД) архивов с данными НСИ',
     })
-    public async getNsi(ctx: Context<GetNsiRequestParams>) {
+    public async getNsi(ctx: Context<GetNsiRequestParams>): Promise<GetNsiResponse> {
         const { fzType, nsiCode, nsiKind } = ctx.params;
         const params = {
             index: this.createIndexData(),
@@ -261,9 +284,12 @@ export default class EisDocsService extends MoleculerService<Settings> {
                 [`nsiCode${fzType === FzTypes.fz44 ? '44' : '223'}`]: nsiCode,
                 nsiKind,
             },
-        } as GetNsiRequest;
+        };
 
-        const [error, content] = await this.executeRequest<GetNsiResponse>('getNsi', params);
+        const [error, content] = await this.executeRequest<EISGetNsiResponse, EISGetNsiRequest>(
+            'getNsi',
+            params,
+        );
         if (error) {
             throw error;
         } else if (!content) {

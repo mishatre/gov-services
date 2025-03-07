@@ -4,7 +4,7 @@ import { parse } from 'node-html-parser';
 
 import { NotFoundError } from '../errors.js';
 import { documentKind } from '../utils/index.js';
-import { GetObjectListRequest, GetObjectListResponse } from './elact-docs.service.js';
+import { GetObjectListParams, GetObjectListResponse } from './elact-docs.service.js';
 
 interface Settings {}
 
@@ -56,7 +56,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
     public async getObjectStatus(
         ctx: Context<{ regNum: string; documentKind: string; objectId: string }>,
     ) {
-        const foundObjects = await ctx.call<GetObjectListResponse, GetObjectListRequest>(
+        const foundObjects = await ctx.call<GetObjectListResponse, GetObjectListParams>(
             'elact-docs.getObjectList',
             ctx.params,
         );
