@@ -1,32 +1,27 @@
 name: eis
 
 services:
+    eis-docs:
+        image: ghcr.io/mishatre/eis
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            - NODEID=eis.eis-docs
+            - SERVICES=eis-docs.service.mjs
+            - DOPPLER_TOKEN
+
     elact-docs:
         image: ghcr.io/mishatre/eis
+        restart: unless-stopped
         env_file: .env
         environment:
             - NODEID=eis.elact-docs
             - SERVICES=elact-docs.service.mjs
             - DOPPLER_TOKEN
 
-    elact-utils:
-        image: ghcr.io/mishatre/eis
-        env_file: .env
-        environment:
-            - NODEID=eis.elact-utils
-            - SERVICES=elact-utils.service.mjs
-            - DOPPLER_TOKEN
-
-    zakupki-rss:
-        image: ghcr.io/mishatre/eis
-        env_file: .env
-        environment:
-            - NODEID=eis.zakupki-rss
-            - SERVICES=zakupki-rss.service.mjs
-            - DOPPLER_TOKEN
-
     elact-eruz:
         image: ghcr.io/mishatre/eis
+        restart: unless-stopped
         env_file: .env
         environment:
             - NODEID=eis.elact-eruz
@@ -34,3 +29,57 @@ services:
             - DOPPLER_TOKEN
         volumes:
             - ./.data:/usr/src/app/.data:rw
+
+    elact-filestore:
+        image: ghcr.io/mishatre/eis
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            - NODEID=eis.elact-filestore
+            - SERVICES=elact-filestore.service.mjs
+            - DOPPLER_TOKEN
+
+    elact-upload:
+        image: ghcr.io/mishatre/eis
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            - NODEID=eis.elact-upload
+            - SERVICES=elact-upload.service.mjs
+            - DOPPLER_TOKEN
+
+    elact-utils:
+        image: ghcr.io/mishatre/eis
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            - NODEID=eis.elact-utils
+            - SERVICES=elact-utils.service.mjs
+            - DOPPLER_TOKEN
+
+    gisp-pp719:
+        image: ghcr.io/mishatre/eis
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            - NODEID=eis.gisp-pp719
+            - SERVICES=gisp-pp719.service.mjs
+            - DOPPLER_TOKEN
+
+    ktru:
+        image: ghcr.io/mishatre/eis
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            - NODEID=eis.ktru
+            - SERVICES=ktru.service.mjs
+            - DOPPLER_TOKEN
+
+    zakupki-rss:
+        image: ghcr.io/mishatre/eis
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            - NODEID=eis.zakupki-rss
+            - SERVICES=zakupki-rss.service.mjs
+            - DOPPLER_TOKEN
