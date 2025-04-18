@@ -18,9 +18,9 @@ import { fromShortDate } from '../utils/date.js';
 
 interface Settings {
     bootstrapCSV: string;
-    bucketName: string;
     dataUrl: string;
     gqlUrl: string;
+    bucketName: string;
     minio: {
         endPoint: string;
         port: number;
@@ -217,9 +217,9 @@ const agent = new Agent({
     },
 
     settings: {
-        bucketName: process.env.MINIO_BUCKET_NAME ?? 'gisp-pp719',
         dataUrl: 'https://gisp.gov.ru/opendata/files/gispdata-current-pp719-products-structure.csv',
         gqlUrl: 'https://gisp.gov.ru/pp719v2/pub/prod/b/',
+        bucketName: process.env.MINIO_BUCKET_NAME ?? 'gisp-pp719',
         minio: {
             endPoint: process.env.S3_ENDPOINT ?? '',
             port: 9000,
@@ -282,8 +282,7 @@ const agent = new Agent({
 })
 export default class GispPP719Service extends MoleculerService<Settings> {
     private adapter!: SqlAdapter & { db: Sequelize.Sequelize };
-    // @ts-expect-error
-    private minioClient: Minio.Client;
+    private minioClient!: Minio.Client;
 
     @action({
         name: 'updateData',
