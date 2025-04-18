@@ -62,6 +62,11 @@ export enum FzTypes {
     fz223 = '223',
 }
 
+export enum NSIKinds {
+    all = 'all',
+    inc = 'inc',
+}
+
 export interface EISDocsResponse<R> {
     index: IndexResponseType;
     dataInfo: R;

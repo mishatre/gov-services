@@ -16,6 +16,7 @@ import {
     EISGetNsiRequest,
     EISGetNsiResponse,
     FzTypes,
+    NSIKinds,
     SubsystemType,
 } from '../types/eis-docs.js';
 import { getHighestVersionFolder, getRequestShim } from '../utils/index.js';
@@ -51,7 +52,7 @@ export type GetDocsByOrgRegionParams = {
 export type GetNsiRequestParams = {
     fzType: FzTypes;
     nsiCode: string;
-    nsiKind: 'all' | 'inc';
+    nsiKind: NSIKinds;
 };
 
 export type GetDocSignaturesByUrlParams = {
@@ -275,6 +276,13 @@ export default class EisDocsService extends MoleculerService<Settings> {
             nsiKind: { type: 'enum', values: ['all', 'inc'] },
         },
         description: 'Запрос формирования в хранилище документов (ХД) архивов с данными НСИ',
+        cache: {
+            enabled: true,
+            // all - each sunday between 01:00 and 07:00
+            // inc - each day between 03:00 and 04:00 (except KTRU)
+            // KTRU - each hour
+            ttl: 60 * 60,
+        },
     })
     public async getNsi(ctx: Context<GetNsiRequestParams>): Promise<GetNsiResponse> {
         const { fzType, nsiCode, nsiKind } = ctx.params;
