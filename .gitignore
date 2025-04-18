@@ -169,3 +169,5 @@ dist
 eruz
 certs
 schemas
+
+*.csv
