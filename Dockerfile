@@ -1,10 +1,8 @@
-FROM node:22-slim AS base
+FROM node:23-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 WORKDIR /usr/src/app
-
-ARG SSH_PRIVATE_KEY
 
 RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg && \
     curl -sLf --retry 3 --tlsv1.2 --proto "=https" 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' | gpg --dearmor -o /usr/share/keyrings/doppler-archive-keyring.gpg && \
@@ -13,14 +11,6 @@ RUN apt-get update && apt-get install -y apt-transport-https ca-certificates cur
     apt-get -y install doppler git python3 build-essential && \
     ln -s /usr/bin/python3 /usr/bin/python && \
     rm -rf /var/lib/apt/lists/* && \
-    # 
-    # Add SSH key for GitHub access
-    # Assumes SSH key is provided as a build argument
-    # 
-    mkdir -p ~/.ssh && \
-    echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa && \
-    chmod 600 ~/.ssh/id_rsa && \
-    ssh-keyscan github.com >> ~/.ssh/known_hosts  && \
     # 
     # Corepack key error mitigation
     # 

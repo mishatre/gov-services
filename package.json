@@ -25,7 +25,6 @@
     "author": "M.Tregub",
     "license": "MIT",
     "devDependencies": {
-        "@moleculer-lab/agent": "git+https://github.com/mishatre/moleculer-lab.git",
         "@trivago/prettier-plugin-sort-imports": "^5.2.2",
         "@types/lodash": "^4.17.16",
         "@types/node": "^20.17.30",
