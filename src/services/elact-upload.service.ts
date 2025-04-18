@@ -65,6 +65,7 @@ export type GetProcessingResultResponse = LKPResultResponse;
 })
 export default class ElactUploadService extends MoleculerService<Settings> {
     private soapClient!: Client;
+    private useTokenService = false;
 
     @action({
         name: 'receiveFile',

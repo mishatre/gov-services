@@ -20,6 +20,72 @@ type ExtractPrintFormsReturnType = Array<{
     content: string;
 }>;
 
+export interface GarSearchParams {
+    query: string;
+    size?: number;
+}
+
+export interface GarInfoParams {
+    uid: string;
+}
+
+export interface GarSearchResponse {
+    items: GarInfoFetchResponse[];
+}
+
+export interface GarInfoResponse extends GarInfoFetchResponse {}
+
+interface GarSearchFetchResponse {
+    content: GarInfoFetchResponse[];
+    pageable: {
+        pageNumber: number;
+        pageSize: number;
+        sort: {
+            sorted: boolean;
+            unsorted: boolean;
+            empty: boolean;
+        };
+        offset: number;
+        unpaged: boolean;
+        paged: boolean;
+    };
+    last: boolean;
+    totalPages: number;
+    totalElements: number;
+    first: boolean;
+    sort: {
+        sorted: boolean;
+        unsorted: boolean;
+        empty: boolean;
+    };
+    size: number;
+    number: number;
+    numberOfElements: number;
+    empty: boolean;
+}
+interface GarInfoFetchResponse {
+    id: string;
+    objectid: number;
+    objectguid: string;
+    municipalHierarchyAddressObjects: {
+        objectid: number;
+        objectguid: string;
+        name: string;
+        level: number;
+    }[];
+    level: number;
+    municipalHierarchyAddress: string;
+    address: string;
+    params: {
+        OktmoBudget: string;
+        OKTMO: string;
+        ReestrNum: string;
+        OKATO: string;
+        CadastrNum: string;
+        PostIndex: string;
+    };
+}
+
 const DOCUMENT_MAP = {
     defaultOpen: 'ON_NSCHFDOPPR',
     'Информация о поставке': 'PRIL_ON_NSCHFDOPPR',
@@ -30,7 +96,7 @@ const DOCUMENT_MAP = {
 } as Readonly<{ [key: string]: string }>;
 
 @service({
-    name: 'elact-utils',
+    name: 'elact-utils-test',
 
     metadata: {
         $description: `ЕИС дополнительная функциональность`,
@@ -40,6 +106,56 @@ const DOCUMENT_MAP = {
     dependencies: [],
 })
 export default class ElactDocsService extends MoleculerService<Settings> {
+    @action({
+        name: 'garSearch',
+        description: 'Поиск адреса в государственном адресном реестре',
+        params: {
+            query: 'string|trim',
+            size: 'number|default:20',
+        },
+    })
+    public async garSearch(ctx: Context<GarSearchParams>): Promise<GarSearchResponse> {
+        const url = new URL('/gar', 'https://zakupki.gov.ru');
+        url.searchParams.set('size', String(ctx.params.size || 20));
+        url.searchParams.set('query', ctx.params.query);
+
+        let response: GarSearchFetchResponse;
+        try {
+            const res = await fetch(url);
+            response = await res.json();
+        } catch (error) {
+            throw error;
+        }
+
+        if (response.empty) {
+            throw new NotFoundError();
+        }
+
+        return {
+            items: response.content,
+        };
+    }
+
+    @action({
+        name: 'garInfo',
+        params: {
+            uid: 'string',
+        },
+    })
+    public async garInfo(ctx: Context<GarInfoParams>): Promise<GarInfoResponse> {
+        const url = new URL(`/gar/${ctx.params.uid}`, 'https://zakupki.gov.ru');
+
+        let response: GarInfoFetchResponse;
+        try {
+            const res = await fetch(url);
+            response = await res.json();
+        } catch (error) {
+            throw error;
+        }
+
+        return response;
+    }
+
     @action({
         name: 'getObjectStatus',
         params: {
