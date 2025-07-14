@@ -1,0 +1,16 @@
+/**
+ * @import { Config } from "prettier";
+ */
+
+export default /** @type {const} @satisfies {Config} */ ({
+    printWidth: 100,
+    tabWidth: 4,
+    singleQuote: true,
+    bracketSameLine: true,
+    trailingComma: 'all',
+    plugins: ['@trivago/prettier-plugin-sort-imports'],
+    importOrder: ['<THIRD_PARTY_MODULES>', '^[./]'],
+    importOrderParserPlugins: ['typescript', 'decorators'],
+    importOrderSeparation: true,
+    importOrderSortSpecifiers: true,
+});

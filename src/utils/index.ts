@@ -3,6 +3,8 @@ import { readdir } from 'node:fs/promises';
 import { createClientAsync } from 'soap';
 import { ProxyAgent } from 'undici';
 
+import { ServiceSettingsSchema } from '../types/utils.js';
+
 // @ts-expect-error
 const defaultDispatcher = global[Symbol.for('undici.globalDispatcher.1')];
 
@@ -144,3 +146,12 @@ export const documentKind = [
     'elActUnstructuredSupplierTitle',
     'elActUnstructuredCustomerTitle',
 ];
+
+export function toFirstUpperCase(str: string) {
+    if (typeof str !== 'string' || str.length === 0) return str;
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+export function defineSettings<T extends object>(settings: ServiceSettingsSchema<T>) {
+    return settings;
+}

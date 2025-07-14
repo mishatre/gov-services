@@ -1,12 +1,11 @@
-import { action, created, lifecycle, method, service, started } from 'moldecor';
-import { Context, Errors, Service as MoleculerService, ServiceSettingSchema } from 'moleculer';
+import { action, lifecycle, method, service } from 'moldecor';
+import { Context, Errors, Service } from 'moleculer';
 import DbService from 'moleculer-db';
 import SqlAdapter from 'moleculer-db-adapter-sequelize';
 import Sequelize from 'sequelize';
 
 import { NotFoundError, TokenNotFoundError } from '../errors.js';
-
-interface Settings {}
+import { defineSettings } from '../utils/index.js';
 
 export interface CreateRecordParams {
     regNum: string;
@@ -58,6 +57,10 @@ interface dbTable {
     enabled: boolean;
 }
 
+type This = ElactEruzService & DbService;
+
+const settings = defineSettings({});
+
 @service({
     name: 'elact-eruz',
 
@@ -67,7 +70,7 @@ interface dbTable {
         $official: false,
     },
 
-    settings: {},
+    settings,
 
     mixins: [DbService],
     adapter: new SqlAdapter({
@@ -103,8 +106,12 @@ interface dbTable {
         remove: false,
     },
 })
-export default class ElactEruzService extends MoleculerService<Settings> {
-    private adapter!: SqlAdapter;
+export default class ElactEruzService extends Service<typeof settings> {
+    declare private adapter: SqlAdapter & { db: Sequelize.Sequelize };
+
+    /*
+     *  Actions
+     */
 
     @action({
         name: 'createRecord',
@@ -114,7 +121,10 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             token: 'uuid',
         },
     })
-    public async createRecord(ctx: Context<CreateRecordParams>): Promise<CreateRecordResponse> {
+    public async createRecord(
+        this: This,
+        ctx: Context<CreateRecordParams>,
+    ): Promise<CreateRecordResponse> {
         const { regNum, inn, token, skipValidation } = ctx.params;
 
         const foundRecord = await this.getRecord(ctx, regNum);
@@ -144,7 +154,10 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             regNum: 'string|numeric|length:8',
         },
     })
-    public async removeRecord(ctx: Context<RemoveRecordParams>): Promise<RemoveRecordResponse> {
+    public async removeRecord(
+        this: This,
+        ctx: Context<RemoveRecordParams>,
+    ): Promise<RemoveRecordResponse> {
         await this._remove(ctx, { id: ctx.params.regNum });
         return {
             regNum: ctx.params.regNum,
@@ -160,7 +173,7 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             enabled: true,
         },
     })
-    public async getToken(ctx: Context<GetTokenParams>): Promise<GetTokenResponse> {
+    public async getToken(this: This, ctx: Context<GetTokenParams>): Promise<GetTokenResponse> {
         const foundRecord = await this.getRecord(ctx, ctx.params.regNum);
         if (!foundRecord) {
             throw new TokenNotFoundError();
@@ -174,7 +187,7 @@ export default class ElactEruzService extends MoleculerService<Settings> {
             regNum: 'string|numeric|length:8',
         },
     })
-    public async getINN(ctx: Context<GetINNParams>): Promise<GetINNResponse> {
+    public async getINN(this: This, ctx: Context<GetINNParams>): Promise<GetINNResponse> {
         const foundRecord = await this.getRecord(ctx, ctx.params.regNum);
         if (!foundRecord) {
             throw new NotFoundError();
@@ -182,16 +195,28 @@ export default class ElactEruzService extends MoleculerService<Settings> {
         return foundRecord.inn;
     }
 
+    /*
+     *  Methods
+     */
+
     @method
-    private async getRecord(ctx: Context, regNum: string): Promise<dbTable | undefined> {
+    private async getRecord(
+        this: This,
+        ctx: Context,
+        regNum: string,
+    ): Promise<dbTable | undefined> {
         try {
             return await this._get(ctx, { id: regNum });
         } catch (_) {}
         return undefined;
     }
 
+    /*
+     *  Lifecycle methods
+     */
+
     @lifecycle
-    entityCreated(json: dbTable, ctx: Context) {
+    entityCreated(this: This, json: dbTable, ctx: Context) {
         ctx.emit(
             'elact-eruz.created',
             { regNum: json.regNum, inn: json.inn },
@@ -200,17 +225,11 @@ export default class ElactEruzService extends MoleculerService<Settings> {
     }
 
     @lifecycle
-    entityRemoved(json: dbTable, ctx: Context) {
+    entityRemoved(this: This, json: dbTable, ctx: Context) {
         ctx.emit(
             'elact-eruz.removed',
             { regNum: json.regNum, inn: json.inn },
             { group: 'elact-eruz' },
         );
     }
-
-    @started
-    protected async started() {}
-
-    @created
-    protected created() {}
 }

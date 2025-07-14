@@ -1,34 +1,53 @@
-import { Temporal } from '@js-temporal/polyfill';
 import dns from 'dns';
 import * as Minio from 'minio';
-import { action, created, method, service, started } from 'moldecor';
-import { Context, Errors, Service as MoleculerService } from 'moleculer';
+import { action, lifecycle, method, service, started, stopped } from 'moldecor';
+import { Context, Errors, Service } from 'moleculer';
+import CronMixin from 'moleculer-cron';
 import DbService from 'moleculer-db';
 import SqlAdapter from 'moleculer-db-adapter-sequelize';
-import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
-import { PassThrough, Readable } from 'node:stream';
+import { PassThrough, Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import pLimit from 'p-limit';
 import Papa from 'papaparse';
 import Sequelize from 'sequelize';
 import { Agent, fetch } from 'undici';
 import Unzip from 'unzip-stream';
 
-import { fromShortDate } from '../utils/date.js';
+import TasksMixin, { Task, task, withTask } from '../mixins/tasks-mixin.js';
+import { runConcurrently } from '../utils/concurrency.js';
+import { fromShortDate, getStartOfDayUTCInTimezone } from '../utils/date.js';
+import { defineSettings } from '../utils/index.js';
+import { job } from '../utils/job.js';
+import { getS3EnvConfig } from '../utils/s3.js';
 
-interface Settings {
-    bootstrapCSV: string;
-    dataUrl: string;
-    gqlUrl: string;
-    bucketName: string;
-    minio: {
-        endPoint: string;
-        port: number;
-        useSSL: boolean;
-        accessKey: string;
-        secretKey: string;
-    };
-}
+export type SyncParams = {
+    force?: boolean;
+    skipFetch?: boolean;
+};
+
+export type CleanStaleWriteoutsParams = {
+    force?: boolean;
+};
+
+export type GetWriteoutsParams = {
+    regNum: number;
+    documentDate: Date;
+};
+
+export type SyncResponse = {
+    started: boolean;
+};
+
+export type CleanStaleWriteoutsResponse = {
+    started: boolean;
+};
+
+export type GetWriteoutsResponse = Promise<
+    {
+        filename: string;
+        url: string;
+    }[]
+>;
 
 interface PP719RawRecord {
     Nameoforg: string;
@@ -153,29 +172,29 @@ const convertMap = {
     Resdocnum: 'resDocumentNumber',
 } as const;
 
-const booleanKeys = new Set(['isAI', 'isElectronicProduct']);
-
-const dateKeys = new Set([
-    'documentDate',
-    'documentDateBasis',
-    'documentValidUntill',
-    'documentValidUntillTpp',
-]);
-
-const numberKeys = new Set(['score', 'percentage']);
+const convertKeys = {
+    boolean: new Set(['isAI', 'isElectronicProduct']),
+    date: new Set([
+        'documentDate',
+        'documentDateBasis',
+        'documentValidUntill',
+        'documentValidUntillTpp',
+    ]),
+    number: new Set(['score', 'percentage']),
+};
 
 function convertValue(value: string, key: string) {
-    if (booleanKeys.has(key)) {
+    if (convertKeys.boolean.has(key)) {
         if (value === '-') {
             return undefined;
         }
         return value.toLowerCase() !== 'Нет'.toLowerCase();
-    } else if (dateKeys.has(key)) {
+    } else if (convertKeys.date.has(key)) {
         if (value === '-') {
             return undefined;
         }
         return fromShortDate(value);
-    } else if (numberKeys.has(key)) {
+    } else if (convertKeys.number.has(key)) {
         if (value === '-') {
             return undefined;
         }
@@ -185,16 +204,6 @@ function convertValue(value: string, key: string) {
     }
 
     return value;
-}
-
-function getStartOfDayUTCInTimezone(timezone: string) {
-    // Get the current date/time in the specified timezone
-    const zonedDateTime = Temporal.Now.zonedDateTimeISO(timezone);
-    // Get the start of that day (i.e. midnight in that timezone)
-    const startOfDayInZone = zonedDateTime.startOfDay();
-    // Convert that local midnight to an Instant (a UTC point in time)
-    const instantUTC = startOfDayInZone.toInstant();
-    return instantUTC.toString({ fractionalSecondDigits: 3 }); // ISO string in UTC
 }
 
 const agent = new Agent({
@@ -207,6 +216,46 @@ const agent = new Agent({
     },
 });
 
+const model = {
+    organizationName: Sequelize.TEXT,
+    ogrn: Sequelize.STRING,
+    inn: Sequelize.STRING,
+    organizationAddress: Sequelize.STRING,
+    productManufacturerAddress: Sequelize.STRING,
+    regNumber: Sequelize.STRING,
+    ektrudp: Sequelize.STRING,
+    endDate: Sequelize.DATE,
+    registerNumber: Sequelize.STRING,
+    productName: Sequelize.STRING,
+    okpd2: Sequelize.STRING,
+    tnved: Sequelize.STRING,
+    nameOfRegulations: Sequelize.STRING,
+    score: Sequelize.NUMBER,
+    percentage: Sequelize.NUMBER,
+    scoreDescription: Sequelize.STRING,
+    isElectronicProduct: Sequelize.BOOLEAN,
+    isAI: Sequelize.BOOLEAN,
+    electronicProductLevel: Sequelize.STRING,
+    documentName: Sequelize.STRING,
+    documentDateBasis: Sequelize.DATE,
+    documentNumber: Sequelize.STRING,
+    documentDate: Sequelize.DATE,
+    documentValidUntill: Sequelize.DATE,
+    documentValidUntillTpp: Sequelize.DATE,
+    mtdep: Sequelize.STRING,
+    resDocumentNumber: Sequelize.STRING,
+};
+
+type This = GispPP719Service & DbService & typeof CronMixin & TasksMixin;
+
+const settings = defineSettings({
+    dataUrl: 'https://gisp.gov.ru/opendata/files/gispdata-current-pp719-products-structure.csv',
+    gqlUrl: 'https://gisp.gov.ru/pp719v2/pub/prod/b/',
+    s3: getS3EnvConfig('S3', 'GISP_PP719', {
+        defaultBucketName: 'gisp-pp719',
+    }),
+});
+
 @service({
     name: 'gisp-pp719',
 
@@ -216,57 +265,18 @@ const agent = new Agent({
         $official: false,
     },
 
-    settings: {
-        dataUrl: 'https://gisp.gov.ru/opendata/files/gispdata-current-pp719-products-structure.csv',
-        gqlUrl: 'https://gisp.gov.ru/pp719v2/pub/prod/b/',
-        bucketName: process.env.MINIO_BUCKET_NAME ?? 'gisp-pp719',
-        minio: {
-            endPoint: process.env.S3_ENDPOINT ?? '',
-            port: 9000,
-            useSSL: process.env.S3_USESSL ? process.env.S3_USESSL.toLowerCase() === 'true' : false,
-            accessKey: process.env.S3_ACCESS_KEY ?? '',
-            secretKey: process.env.S3_SECRET_KEY ?? '',
-        },
-    },
+    settings,
 
-    mixins: [DbService],
+    mixins: [DbService, CronMixin, TasksMixin],
     adapter: new SqlAdapter({
         dialect: 'sqlite',
-        storage: './.data/gisp.sqlite',
+        storage: './.data/gisp-pp719.sqlite',
         logging: false,
     }),
 
     model: {
         name: 'pp719s',
-        define: {
-            organizationName: Sequelize.STRING,
-            ogrn: Sequelize.STRING,
-            inn: Sequelize.STRING,
-            organizationAddress: Sequelize.STRING,
-            productManufacturerAddress: Sequelize.STRING,
-            regNumber: Sequelize.STRING,
-            ektrudp: Sequelize.STRING,
-            endDate: Sequelize.DATE,
-            registerNumber: Sequelize.STRING,
-            productName: Sequelize.STRING,
-            okpd2: Sequelize.STRING,
-            tnved: Sequelize.STRING,
-            nameOfRegulations: Sequelize.STRING,
-            score: Sequelize.NUMBER,
-            percentage: Sequelize.NUMBER,
-            scoreDescription: Sequelize.STRING,
-            isElectronicProduct: Sequelize.BOOLEAN,
-            isAI: Sequelize.BOOLEAN,
-            electronicProductLevel: Sequelize.STRING,
-            documentName: Sequelize.STRING,
-            documentDateBasis: Sequelize.DATE,
-            documentNumber: Sequelize.STRING,
-            documentDate: Sequelize.DATE,
-            documentValidUntill: Sequelize.DATE,
-            documentValidUntillTpp: Sequelize.DATE,
-            mtdep: Sequelize.STRING,
-            resDocumentNumber: Sequelize.STRING,
-        },
+        define: model,
         options: {
             // Options from http://docs.sequelizejs.com/manual/tutorial/models-definition.html
         },
@@ -280,156 +290,189 @@ const agent = new Agent({
         remove: false,
     },
 })
-export default class GispPP719Service extends MoleculerService<Settings> {
-    private adapter!: SqlAdapter & { db: Sequelize.Sequelize };
-    private minioClient!: Minio.Client;
+export default class GispPP719Service extends Service<typeof settings> {
+    declare private adapter: SqlAdapter & { db: Sequelize.Sequelize };
+    declare private s3Client: Minio.Client;
+
+    /*
+     *  Jobs
+     */
+
+    @job('0 0 9 * * *') // Every day at 09:00
+    public async jobSync(this: This) {
+        if (this.hasRunningTask('sync')) {
+            this.logger.info('Sync is already in progress. Skipping cron-job');
+            return;
+        }
+
+        this.logger.info('Start sync data job');
+        const task = withTask(this.sync());
+        await task?.promise;
+    }
+
+    @job('0 30 8 * * *') // Each day at 08:30
+    public async jobCleanStaleWriteouts(this: This) {
+        this.logger.info('Start cleaning stale writeouts job');
+        const task = withTask(this.cleanStaleWriteouts());
+        await task?.promise;
+    }
+
+    /*
+     *  Actions
+     */
 
     @action({
-        name: 'updateData',
+        name: 'sync',
+        params: {
+            force: 'boolean|optional',
+            skipFetch: 'boolean|optional',
+        },
+    })
+    public actionSync(this: This, ctx: Context<SyncParams>): SyncResponse {
+        const pendingTask = withTask(this.sync(ctx.params.force, ctx.params.skipFetch));
+        return {
+            started: !!pendingTask && pendingTask.running,
+        };
+    }
+
+    @action({
+        name: 'cleanStaleWriteouts',
         params: {
             force: 'boolean|optional',
         },
     })
-    public async updateData(ctx: Context<{ force: boolean }>) {
-        const isStale = await this.isDataStale();
-        if (!isStale && !ctx.params.force) {
-            throw new Error('Data is not stale');
-        }
-
-        await this.adapter.clear();
-
-        const res = await fetch(this.settings.dataUrl, {
-            dispatcher: agent,
-        });
-
-        if (!res.ok || !res.body) {
-            return;
-        }
-
-        await this.saveData(Readable.from(res.body));
+    public actionCleanStaleWriteouts(
+        this: This,
+        ctx: Context<CleanStaleWriteoutsParams>,
+    ): CleanStaleWriteoutsResponse {
+        const pendingTask = withTask(this.cleanStaleWriteouts(ctx.params.force));
+        return {
+            started: !!pendingTask,
+        };
     }
 
     @action({
-        name: 'getWriteout',
+        name: 'getWriteouts',
         params: {
             regNum: 'string|trim',
+            documentDate: 'date|convert',
         },
         circuitBreaker: {
             enabled: true,
             threshold: 2,
         },
     })
-    public async getWriteout(ctx: Context<{ regNum: string }>) {
-        let filename: string;
-        const objectName = `${ctx.params.regNum}.pdf`;
+    public async getWriteouts(this: This, ctx: Context<GetWriteoutsParams>): GetWriteoutsResponse {
+        const items = (await this.adapter.find({
+            query: {
+                registerNumber: ctx.params.regNum,
+                documentDate: ctx.params.documentDate,
+            },
+        })) as PP719Record[];
 
-        try {
-            const statInfo = await this.minioClient.statObject(
-                this.settings.bucketName,
-                objectName,
-            );
-            filename = decodeURIComponent(statInfo.metaData.filename);
+        if (items.length === 0) {
+            throw new Errors.MoleculerError('Not found', 404, 'NOT_FOUND');
+        }
 
-            const validUntill = new Date(statInfo.metaData.validuntill);
-            const currentDate = new Date();
-            currentDate.setHours(0, 0, 0);
+        const productsInfo = await this.getActualProductsInfo(items[0].registerNumber);
 
-            if (validUntill > currentDate) {
-                const url = await this.generateWriteoutUrl(objectName, filename!);
-                return {
-                    filename,
-                    url,
-                };
+        const result: { filename: string; url: string }[] = [];
+
+        await runConcurrently(items, 10, async (item) => {
+            const productInfo = productsInfo.find((v) => {
+                const date1 = new Date(v.res_date);
+                date1.setHours(0, 0, 0, 0);
+                const date2 = item.documentDate;
+                date2.setHours(0, 0, 0, 0);
+                return date1.getTime() === date2.getTime();
+            });
+
+            if (!productInfo) {
+                throw new Errors.MoleculerError('Not found', 404, 'NOT_FOUND');
             }
 
-            await this.minioClient.removeObject(this.settings.bucketName, objectName);
-        } catch (error) {
-            if (error instanceof Minio.S3Error) {
-                if (error.code !== 'NotFound') {
-                    throw error;
+            const objectName = `writeout/${item.registerNumber}_${item.documentDate.getTime()}.pdf`;
+            const objectInfo = await this.getWriteoutFileStat(objectName);
+            if (objectInfo) {
+                const currentDate = new Date();
+                currentDate.setHours(0, 0, 0);
+
+                if (objectInfo.validUntill > currentDate) {
+                    return result.push({
+                        filename: objectInfo.filename,
+                        url: await this.generateWriteoutUrl(objectName, objectInfo.filename),
+                    });
                 }
-            } else {
+
+                await this.s3Client.removeObject(this.settings.s3.defaultBucketName, objectName);
+            }
+
+            try {
+                const res = await fetch(productInfo.product_writeout_url, {
+                    method: 'GET',
+                    dispatcher: agent,
+                });
+
+                if (!res.ok) {
+                    throw new Errors.MoleculerError(res.statusText, res.status);
+                }
+
+                if (!res.body) {
+                    throw new Errors.MoleculerError('Empty body', 500, 'EMPTY_BODY');
+                }
+
+                const stream = Readable.from(res.body, { emitClose: false });
+
+                const unzipStream = Unzip.Parse();
+                stream.pipe(unzipStream);
+
+                let filename;
+
+                for await (const entry of unzipStream as AsyncIterable<Unzip.Entry>) {
+                    if (!entry.path.endsWith('pdf')) {
+                        entry.autodrain();
+                        continue;
+                    }
+                    await this.s3Client.putObject(
+                        this.settings.s3.defaultBucketName,
+                        objectName,
+                        entry,
+                        entry.size,
+                        {
+                            url: productInfo.product_writeout_url,
+                            filename: encodeURIComponent(entry.path),
+                            validuntill: fromShortDate(productInfo.res_valid_till),
+                        },
+                    );
+                    filename = entry.path;
+                }
+
+                if (!filename) {
+                    throw new Error(
+                        `No PDF file found in archive from ${productInfo.product_writeout_url}`,
+                    );
+                }
+
+                const url = await this.generateWriteoutUrl(objectName, filename);
+
+                result.push({
+                    filename: filename!,
+                    url,
+                });
+            } catch (error) {
                 throw error;
             }
-        }
-
-        const info = await this.getInfoByRegNum(ctx.params.regNum);
-        const res1 = await fetch(info.product_writeout_url, {
-            method: 'GET',
-            dispatcher: agent,
-        });
-        const stream = Readable.from(res1.body!, { emitClose: false });
-
-        const self = this;
-        await pipeline(stream, Unzip.Parse(), async function* (stream) {
-            for await (const entry of stream as AsyncIterable<Unzip.Entry>) {
-                if (!entry.path.endsWith('pdf')) {
-                    continue;
-                }
-                await self.minioClient.putObject(
-                    self.settings.bucketName,
-                    objectName,
-                    entry,
-                    entry.size,
-                    {
-                        url: info.product_writeout_url,
-                        filename: encodeURIComponent(entry.path),
-                        validuntill: fromShortDate(info.res_valid_till),
-                    },
-                );
-                filename = entry.path;
-            }
         });
 
-        const url = await this.generateWriteoutUrl(objectName, filename!);
-
-        return {
-            filename: filename!,
-            url,
-        };
+        return result;
     }
 
-    @method
-    private async cleanStaleWriteouts() {
-        let counter = 0;
-        const list = await this.minioClient.listObjectsV2(this.settings.bucketName);
-        const pending = [];
-        for await (const item of list) {
-            pending.push(
-                new Promise<void>(async (resolve) => {
-                    const statInfo = await this.minioClient.statObject(
-                        this.settings.bucketName,
-                        item.name,
-                    );
-                    const validUntill = new Date(statInfo.metaData.validuntill);
-                    const currentDate = new Date();
-                    currentDate.setHours(0, 0, 0);
-
-                    if (validUntill <= currentDate) {
-                        await this.minioClient.removeObject(this.settings.bucketName, item.name);
-                        counter++;
-                    }
-                    resolve();
-                }),
-            );
-            if (pending.length > 5) {
-                await Promise.all(pending);
-                pending.length = 0;
-            }
-        }
-        this.logger.debug(`Removed ${counter} stored stale writeouts`);
-    }
+    /*
+     *  Methods
+     */
 
     @method
-    private async generateWriteoutUrl(objectName: string, filename: string) {
-        return this.minioClient.presignedGetObject(this.settings.bucketName, objectName, 60 * 60, {
-            'response-content-type': 'application/pdf',
-            'response-content-disposition': `inline; filename="${encodeURIComponent(filename!)}"`,
-        });
-    }
-
-    @method
-    private async getInfoByRegNum(regNum: string) {
+    private async getActualProductsInfo(this: This, regNum: string) {
         const body = {
             opt: {
                 sort: null,
@@ -448,89 +491,230 @@ export default class GispPP719Service extends MoleculerService<Settings> {
                 ],
             },
         };
-        const res = await fetch(this.settings.gqlUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
-            dispatcher: agent,
-        });
 
-        if (!res.ok) {
-            throw new Error();
+        let data = undefined;
+
+        try {
+            const res = await fetch(this.settings.gqlUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+                dispatcher: agent,
+            });
+
+            if (!res.ok) {
+                throw new Errors.MoleculerError(res.statusText, res.status);
+            }
+
+            data = (await res.json()) as GQLResponse;
+        } catch (error) {
+            throw error;
         }
 
-        const data = (await res.json()) as GQLResponse;
         if (!data || !data.ok) {
-            throw new Error('NO_DATA');
+            throw new Errors.MoleculerError('Not found', 404, 'NOT_FOUND');
         }
 
-        if (data.total_count !== 1) {
-            throw new Error('MULTIPLE_DATA');
-        }
-
-        const record = data.items[0];
-
-        return record;
+        return data.items;
     }
 
     @method
-    private async saveData(stream: Readable) {
-        const self = this;
+    private async getWriteoutFileStat(this: This, objectName: string) {
+        try {
+            const statInfo = await this.s3Client.statObject(
+                this.settings.s3.defaultBucketName,
+                objectName,
+            );
+            const filename = decodeURIComponent(statInfo.metaData.filename);
+
+            return {
+                filename,
+                validUntill: new Date(statInfo.metaData.validuntill),
+            };
+        } catch (error) {
+            if (error instanceof Minio.S3Error) {
+                if (error.code === 'NotFound') {
+                    return undefined;
+                }
+            }
+            throw error;
+        }
+    }
+
+    @task()
+    @method
+    private async sync(this: This, force?: boolean, skipFetch?: boolean) {
+        const task = this.getCurrentTask();
+
+        const isStale = await this.isDataStale();
+        if (!isStale && !force) {
+            task?.setProgress('Sync skipped - data not stale');
+            return {
+                success: false,
+                reason: 'not_stale',
+            };
+        }
+
+        if (skipFetch === true) {
+            this.logger.warn('Fetching skipped');
+        } else {
+            try {
+                const pendingTask = withTask(this.fetchData());
+                if (!pendingTask) {
+                    return;
+                }
+                const result = await pendingTask.promise;
+                if (result === false) {
+                    this.logger.warn('Fetching data failed!');
+                    return;
+                }
+            } catch (error) {
+                this.logger.error('Error during data fetch', error);
+                return;
+            }
+        }
+
+        try {
+            const pendingTask = withTask(this.processData());
+            if (!pendingTask) {
+                return;
+            }
+            await pendingTask.promise;
+        } catch (error) {
+            this.logger.error('Error during data processing', error);
+            return;
+        }
+
+        task?.setProgress('Sync finished');
+
+        return {
+            success: true,
+        };
+    }
+
+    @task()
+    @method
+    private async fetchData(this: This) {
+        this.logger.info('Fetching data');
+
+        const task = this.getCurrentTask();
+
+        const res = await fetch(this.settings.dataUrl, {
+            dispatcher: agent,
+            signal: task?.signal,
+        });
+
+        if (!res.ok || !res.body) {
+            return false;
+        }
+
+        const contentLength = Number(res.headers.get('content-length'));
+        let downloaded = 0;
+
+        // Transform stream that counts bytes
+        const progressStream = new Transform({
+            transform: (chunk, encoding, callback) => {
+                downloaded += chunk.length;
+                if (contentLength) {
+                    const percent = ((downloaded / contentLength) * 100).toFixed(2);
+                    task?.setProgress(`Fetching: ${percent}%`);
+                } else {
+                    task?.setProgress(`Fetching: ${downloaded} bytes`);
+                }
+                callback(null, chunk);
+            },
+        });
+
+        // const stream = createReadStream('/Users/mt/Downloads/gispdata-current-pp719-products-structure.csv');
+        const stream = Readable.from(res.body).pipe(progressStream);
+
+        await this.s3Client.putObject(
+            this.settings.s3.defaultBucketName,
+            `gispdata-current-pp719-products-structure.csv`,
+            stream,
+            contentLength,
+        );
+
+        return true;
+    }
+
+    @task()
+    @method
+    private async processData(this: This) {
+        this.logger.info('Processing data');
+
+        const task = this.getCurrentTask() as Task<ReturnType<typeof this.processData>>;
+
+        const objectName = 'gispdata-current-pp719-products-structure.csv';
+
+        await this.adapter.clear();
+
+        task?.setProgress(`Fething object - '${objectName}'`);
+
+        const stream = await this.s3Client.getObject(
+            this.settings.s3.defaultBucketName,
+            objectName,
+        );
+        // const stream = createReadStream("/Users/mt/Downloads/gispdata-current-pp719-products-structure (1).csv");
+
+        const BATCH_INSERT_LIMIT = 1000;
         const parser = Papa.parse(Papa.NODE_STREAM_INPUT, { header: true });
+
+        const writeLimit = pLimit(3);
+        let counter = 0;
+        const pendingWrites: Promise<any>[] = [];
+
+        const fn = async (stream: AsyncIterable<PP719RawRecord>) => {
+            const items: PP719Record[] = [];
+            for await (const value of stream) {
+                if (task?.signal.aborted) {
+                    // Don't and insert any more rows in db
+                    return;
+                }
+                items.push(this.adaptRecord(value));
+                if (items.length >= BATCH_INSERT_LIMIT) {
+                    const batch = items.slice();
+                    pendingWrites.push(
+                        writeLimit(async () => {
+                            await this.insertInTransation(batch);
+                            counter += batch.length;
+                            task?.setProgress(`Processing record - ${counter}/...`);
+                        }),
+                    );
+                    items.length = 0;
+                }
+            }
+            if (items.length > 0) {
+                const batch = items.slice();
+                pendingWrites.push(
+                    writeLimit(async () => {
+                        await this.insertInTransation(batch);
+                        counter += batch.length;
+                        task?.setProgress(`Processing record - ${counter}/...`);
+                    }),
+                );
+                items.length = 0;
+            }
+        };
 
         await pipeline(
             stream,
             parser,
-            // Should be more than 1 chank of data
+            // Should have more than 1 chunk of data
             new PassThrough({ objectMode: true, highWaterMark: 128 }),
-            async function* (stream) {
-                const pendingInserts = [];
-                let acc = [];
-                let i = 0;
-                performance.mark('test-start');
-                for await (const value of stream as AsyncIterable<PP719RawRecord>) {
-                    i++;
-
-                    acc.push(self.convertPP719Value(value));
-
-                    if (acc.length % 1000 === 0) {
-                        pendingInserts.push(self.adapter.insertMany(acc));
-                        if (pendingInserts.length >= 10) {
-                            // Limit concurrent inserts
-                            await Promise.all(pendingInserts);
-                            pendingInserts.length = 0;
-                        }
-                        acc.length = 0;
-                    }
-                }
-                if (acc.length > 0) {
-                    await self.adapter.insertMany(acc);
-                    acc.length = 0;
-                }
-                performance.mark('test-end');
-                const measure = performance.measure('test', 'test-start', 'test-end');
-                self.logger.warn('Done: ', measure);
-            },
+            fn,
         );
-    }
 
-    @method
-    private convertPP719Value(value: PP719RawRecord) {
-        let newKey: string;
-        let key: keyof typeof value;
-        for (key in value) {
-            newKey = convertMap[key];
-            (value as any)[newKey] = convertValue(value[key], newKey); // Assign to new key
-            delete value[key]; // Remove old key
+        if (task?.signal.aborted) {
         }
 
-        return value as unknown as PP719Record;
+        await Promise.all(pendingWrites);
     }
 
     @method
-    private async isDataStale() {
+    private async isDataStale(this: This) {
         const updateDate = await this.getLastUpdateDate();
         if (!updateDate) {
             return true;
@@ -542,7 +726,7 @@ export default class GispPP719Service extends MoleculerService<Settings> {
     }
 
     @method
-    private async getLastUpdateDate() {
+    private async getLastUpdateDate(this: This) {
         const res = (await this.adapter.findOne({
             searchFields: ['createdAt'],
             sort: ['createdAt'],
@@ -553,44 +737,107 @@ export default class GispPP719Service extends MoleculerService<Settings> {
         return res.createdAt;
     }
 
+    @task()
     @method
-    private async initMinio() {
-        this.minioClient = new Minio.Client(this.settings.minio);
+    private async cleanStaleWriteouts(this: This, force?: boolean) {
+        let counter = 0;
+        const list = await this.s3Client.listObjectsV2(
+            this.settings.s3.defaultBucketName,
+            'writeout/',
+            false,
+        );
 
-        const bucketExists = await this.minioClient.bucketExists(this.settings.bucketName);
+        const items: string[] = [];
+        for await (const item of list) {
+            if (!item.name) {
+                continue;
+            }
+            items.push(item.name);
+        }
+
+        await runConcurrently(items, 10, async (objectName) => {
+            const objectInfo = await this.getWriteoutFileStat(objectName);
+            if (!objectInfo) {
+                return;
+            }
+            const currentDate = new Date();
+            currentDate.setHours(0, 0, 0);
+
+            if (objectInfo.validUntill <= currentDate || force === true) {
+                await this.s3Client.removeObject(this.settings.s3.defaultBucketName, objectName);
+                counter++;
+            }
+        });
+        this.logger.debug(`Removed ${counter} stored stale writeouts`);
+    }
+
+    @method
+    private async generateWriteoutUrl(this: This, objectName: string, filename: string) {
+        return this.s3Client.presignedGetObject(
+            this.settings.s3.defaultBucketName,
+            objectName,
+            60 * 60,
+            {
+                'response-content-type': 'application/pdf',
+                'response-content-disposition': `inline; filename="${encodeURIComponent(filename!)}"`,
+            },
+        );
+    }
+
+    @method
+    private adaptRecord(this: This, value: PP719RawRecord) {
+        const keysToDelete: string[] = [];
+
+        let key: keyof typeof value;
+        for (key in value) {
+            const newKey = convertMap[key];
+            if (newKey) {
+                (value as any)[newKey] = convertValue(value[key], newKey); // Assign to new key
+            } else {
+                keysToDelete.push(key);
+            }
+        }
+
+        for (const key of keysToDelete) {
+            delete (value as any)[key];
+        }
+
+        return value as unknown as PP719Record;
+    }
+
+    @method
+    private async insertInTransation(this: This, items: PP719Record[]) {
+        await this.adapter.db.transaction(async (transaction) => {
+            await this.adapter.insertMany(items, {
+                transaction,
+                validate: false,
+                individualHooks: false,
+                ignoreDuplicates: false,
+            });
+        });
+    }
+
+    @method
+    private async initS3(this: This) {
+        this.s3Client = new Minio.Client(this.settings.s3);
+
+        const bucketExists = await this.s3Client.bucketExists(this.settings.s3.defaultBucketName);
         if (!bucketExists) {
-            await this.minioClient.makeBucket(this.settings.bucketName);
+            await this.s3Client.makeBucket(this.settings.s3.defaultBucketName);
         }
     }
 
-    @method
-    private async initDatabase() {
-        if (!this.settings.bootstrapCSV) {
-            return;
-        }
+    /*
+     *  Lifecycle methods
+     */
 
-        const count = await this.adapter.count();
-        if (count !== 0) {
-            return;
-        }
-
-        const statInfo = await stat(this.settings.bootstrapCSV);
-        if (!statInfo.isFile()) {
-            return;
-        }
-
-        const stream = createReadStream(this.settings.bootstrapCSV);
-        await this.saveData(stream);
-    }
-
-    @created
-    public created() {
-        // rmSync('./.data/gisp.sqlite');
+    @lifecycle
+    public async afterConnected(this: This) {
+        await this.adapter.db.query('PRAGMA journal_mode=WAL;');
     }
 
     @started
-    public async started() {
-        await Promise.all([this.initDatabase(), this.initMinio()]);
-        await this.cleanStaleWriteouts();
+    public async started(this: This) {
+        await this.initS3();
     }
 }

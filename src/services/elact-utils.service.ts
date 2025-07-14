@@ -1,12 +1,10 @@
-import { action, method, service, started } from 'moldecor';
-import { Context, Service as MoleculerService } from 'moleculer';
+import { action, method, service } from 'moldecor';
+import { Context, Service } from 'moleculer';
 import { parse } from 'node-html-parser';
 
 import { NotFoundError } from '../errors.js';
-import { documentKind } from '../utils/index.js';
+import { defineSettings, documentKind } from '../utils/index.js';
 import { GetObjectListParams, GetObjectListResponse } from './elact-docs.service.js';
-
-interface Settings {}
 
 interface ExtractPrintFormsProps {
     url: string;
@@ -95,17 +93,23 @@ const DOCUMENT_MAP = {
     'Мотивированный отказ': 'PRIL_ON_NSCHFDOPPOK',
 } as Readonly<{ [key: string]: string }>;
 
+const settings = defineSettings({});
+
 @service({
-    name: 'elact-utils-test',
+    name: 'elact-utils',
 
     metadata: {
         $description: `ЕИС дополнительная функциональность`,
         $author: 'Mikhail Tregub',
     },
 
-    dependencies: [],
+    settings,
 })
-export default class ElactDocsService extends MoleculerService<Settings> {
+export default class ElactDocsService extends Service<typeof settings> {
+    /*
+     *  Actions
+     */
+
     @action({
         name: 'garSearch',
         description: 'Поиск адреса в государственном адресном реестре',
@@ -139,7 +143,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
     @action({
         name: 'garInfo',
         params: {
-            uid: 'string',
+            uid: 'string|length:36',
         },
     })
     public async garInfo(ctx: Context<GarInfoParams>): Promise<GarInfoResponse> {
@@ -293,6 +297,10 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         return Object.fromEntries(result);
     }
 
+    /*
+     *  Methods
+     */
+
     @method
     private async extractHTMLFilesFromHTMLPage(
         htmlString: string,
@@ -368,7 +376,4 @@ export default class ElactDocsService extends MoleculerService<Settings> {
             /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
         return pattern.exec(string)?.[0];
     }
-
-    @started
-    public async started() {}
 }

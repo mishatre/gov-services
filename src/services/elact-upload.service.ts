@@ -1,28 +1,18 @@
 import iconv from 'iconv-lite';
-import { action, event, method, service, started } from 'moldecor';
-import { BrokerNode, Context, Service as MoleculerService } from 'moleculer';
+import { action, service, started } from 'moldecor';
+import { Context, Service } from 'moleculer';
 import path from 'node:path';
-import { Client, createClientAsync } from 'soap';
+import { Client as SoapClient, createClientAsync } from 'soap';
 
 import pkg from '../../package.json' with { type: 'json' };
-import { TokenNotFoundError, TokenNotProvidedError } from '../errors.js';
+import TokenServiceMixin from '../mixins/token-service-mixin.js';
 import {
     LKPGetProcessingResultRequest,
     LKPReceiveFileRequest,
     LKPResultResponse,
 } from '../types/elact-upload.js';
-import { getHighestVersionFolder, getRequestShim } from '../utils/index.js';
+import { defineSettings, getHighestVersionFolder, getRequestShim } from '../utils/index.js';
 import { executeSoapRequest } from '../utils/soap.js';
-import { GetTokenParams, GetTokenResponse } from './elact-eruz.service.js';
-
-interface Settings {
-    tokenService: string;
-    elact: {
-        schemas: string;
-        wsdl: string;
-        endpoint: string;
-    };
-}
 
 export interface ReceiveFileRequest {
     regNum: string;
@@ -37,6 +27,19 @@ export interface GetProcessingResultRequest {
 export type ReceiveFileResponse = LKPResultResponse;
 export type GetProcessingResultResponse = LKPResultResponse;
 
+type This = ElactUploadService & typeof TokenServiceMixin;
+
+const settings = defineSettings({
+    tokenService: process.env.ELACT_TOKEN_SERVICE || 'elact-eruz',
+    elact: {
+        schemas: './schemas/elact',
+        wsdl: 'WSDL/actWSIncoming.wsdl',
+        endpoint:
+            process.env.ELACT_SUPPLIER_UPLOAD ??
+            'https://int44.zakupki.gov.ru/eis-integration/elact/supplier-upload',
+    },
+});
+
 @service({
     name: 'elact-upload',
 
@@ -46,16 +49,8 @@ export type GetProcessingResultResponse = LKPResultResponse;
         $official: false,
     },
 
-    settings: {
-        tokenService: process.env.ELACT_TOKEN_SERVICE || 'elact-eruz',
-        elact: {
-            schemas: './schemas/elact',
-            wsdl: 'WSDL/actWSIncoming.wsdl',
-            endpoint:
-                process.env.ELACT_SUPPLIER_UPLOAD ??
-                'https://int44.zakupki.gov.ru/eis-integration/elact/supplier-upload',
-        },
-    },
+    settings,
+    mixins: [TokenServiceMixin],
 
     hooks: {
         before: {
@@ -63,9 +58,12 @@ export type GetProcessingResultResponse = LKPResultResponse;
         },
     },
 })
-export default class ElactUploadService extends MoleculerService<Settings> {
-    private soapClient!: Client;
-    private useTokenService = false;
+export default class ElactUploadService extends Service<typeof settings> {
+    declare private soapClient: SoapClient;
+
+    /*
+     *  Actions
+     */
 
     @action({
         name: 'receiveFile',
@@ -74,7 +72,7 @@ export default class ElactUploadService extends MoleculerService<Settings> {
             packetUrl: 'string',
         },
     })
-    public async receiveFile(ctx: Context<ReceiveFileRequest>) {
+    public async receiveFile(this: This, ctx: Context<ReceiveFileRequest>) {
         // TODO: add file validation
         const res = await fetch(ctx.params.packetUrl);
         const arrayBuffer = await res.arrayBuffer();
@@ -113,7 +111,7 @@ export default class ElactUploadService extends MoleculerService<Settings> {
             fileId: 'string|trim|optional',
         },
     })
-    public async getProcessingResult(ctx: Context<GetProcessingResultRequest>) {
+    public async getProcessingResult(this: This, ctx: Context<GetProcessingResultRequest>) {
         const body = {
             ФайлЗапросРезул: {
                 attributes: {
@@ -154,64 +152,12 @@ export default class ElactUploadService extends MoleculerService<Settings> {
         return content;
     }
 
-    @method
-    protected async resolveUserToken(ctx: Context<{ regNum: string }, { token?: string }>) {
-        if (ctx.meta.token) {
-            ctx.locals.usertoken = ctx.meta.token;
-            delete ctx.meta.token;
-        } else if (this.useTokenService) {
-            const usertoken = await ctx.call<GetTokenResponse, GetTokenParams>(
-                `${this.settings.tokenService}.getToken`,
-                {
-                    regNum: ctx.params.regNum,
-                },
-            );
-            if (!usertoken) {
-                throw new TokenNotFoundError();
-            }
-            ctx.locals.usertoken = usertoken;
-        } else {
-            throw new TokenNotProvidedError();
-        }
-    }
-
-    @method
-    private setIsTokenServiceAvailable() {
-        const currentValue = this.useTokenService;
-
-        const list = this.broker.registry.getServiceList({
-            skipInternal: true,
-            onlyAvailable: true,
-        });
-        this.useTokenService =
-            list.find((v) => v.name.toLowerCase() === this.settings.tokenService.toLowerCase()) !==
-            undefined;
-
-        if (currentValue !== this.useTokenService) {
-            this.logger.debug(`useTokenService: ${currentValue} -> ${this.useTokenService}`);
-        }
-    }
-
-    @event({
-        name: '$services.changed',
-        context: true,
-    })
-    protected onServiceChanged(ctx: Context<any>) {
-        this.setIsTokenServiceAvailable();
-    }
-
-    @event({
-        name: '$node.disconnected',
-        context: true,
-    })
-    protected onNodeDisconnected(ctx: Context<{ node: BrokerNode; unexpected: boolean }>) {
-        if (ctx.params.unexpected) {
-            this.setIsTokenServiceAvailable();
-        }
-    }
+    /*
+     *  Lifecycle methods
+     */
 
     @started
-    protected async started() {
+    protected async started(this: This) {
         const highestVersionFolder = await getHighestVersionFolder(this.settings.elact.schemas);
 
         const pathToWSDL = path.join(
@@ -226,7 +172,5 @@ export default class ElactUploadService extends MoleculerService<Settings> {
             useEmptyTag: true,
         });
         this.soapClient.setEndpoint(this.settings.elact.endpoint);
-
-        this.setIsTokenServiceAvailable();
     }
 }

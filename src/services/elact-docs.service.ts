@@ -1,10 +1,12 @@
 import _ from 'lodash';
-import { action, event, method, service, started } from 'moldecor';
-import { BrokerNode, Context, Errors, Service as MoleculerService } from 'moleculer';
+import * as Minio from 'minio';
+import { action, method, service, started } from 'moldecor';
+import { Context, Errors, Service } from 'moleculer';
 import path from 'node:path/posix';
-import { Client, createClientAsync } from 'soap';
+import { Readable } from 'node:stream';
+import { Client as SoapClient, createClientAsync } from 'soap';
 
-import { TokenNotFoundError, TokenNotProvidedError } from '../errors.js';
+import TokenServiceMixin from '../mixins/token-service-mixin.js';
 import { ExcludeErrorInfo } from '../types/basic.js';
 import {
     LkpGetContractsListRequest,
@@ -17,26 +19,27 @@ import {
     LkpGetParticipantInfoResponse,
 } from '../types/elact-docs.js';
 import {
+    defineSettings,
     documentKind,
     getHighestVersionFolder,
     getRequestShim,
     mapToObject,
 } from '../utils/index.js';
+import { getS3EnvConfig } from '../utils/s3.js';
 import { executeSoapRequest } from '../utils/soap.js';
-import { GetTokenParams, GetTokenResponse } from './elact-eruz.service.js';
 
-interface Settings {
-    tokenService: string;
-    elact: {
-        schemas: string;
-        wsdl: string;
-        endpoint: string;
-    };
-}
+export type BulkGetContractsListRequest = {
+    regNum: string;
+    items: LkpGetContractsListRequest[];
+};
+export type BulkGetObjectInfoRequest = {
+    regNum: string;
+    items: LkpGetObjectListRequest[];
+};
 
 // Actions
 
-export type GetContractsListParams = LkpGetContractsListRequest;
+export type GetContractsListParams = LkpGetContractsListRequest & { cacheFiles: boolean };
 export type GetParticipantInfoParams = LkpGetParticipantInfoRequest;
 export type GetObjectListParams = LkpGetObjectListRequest;
 export type GetObjectInfoParams = LkpGetObjectInfoRequest;
@@ -50,6 +53,23 @@ export type GetObjectListResponse = {
 };
 export type GetObjectInfoResponse = ExcludeErrorInfo<LkpGetObjectInfoResponse>;
 
+type This = ElactDocsService & typeof TokenServiceMixin;
+
+const settings = defineSettings({
+    tokenService: process.env.ELACT_TOKEN_SERVICE || 'elact-eruz',
+    elact: {
+        schemas: './schemas/elact',
+        wsdl: 'WSDL/WebServiceElactsDocsLKP.wsdl',
+        endpoint:
+            process.env.ELACT_SUPPLIER_DOCS ??
+            'https://int44.zakupki.gov.ru/eis-integration/elact/supplier-docs',
+    },
+    dataUrl: 'https://data.nalog.ru/files/tnved/tnved.ZIP',
+    s3: getS3EnvConfig('S3', 'ELACT_DOCS', {
+        defaultBucketName: 'elact-docs',
+    }),
+});
+
 @service({
     name: 'elact-docs',
 
@@ -59,16 +79,8 @@ export type GetObjectInfoResponse = ExcludeErrorInfo<LkpGetObjectInfoResponse>;
         $official: false,
     },
 
-    settings: {
-        tokenService: process.env.ELACT_TOKEN_SERVICE || 'elact-eruz',
-        elact: {
-            schemas: './schemas/elact',
-            wsdl: 'WSDL/WebServiceElactsDocsLKP.wsdl',
-            endpoint:
-                process.env.ELACT_SUPPLIER_DOCS ??
-                'https://int44.zakupki.gov.ru/eis-integration/elact/supplier-docs',
-        },
-    },
+    settings,
+    mixins: [TokenServiceMixin],
 
     hooks: {
         before: {
@@ -77,9 +89,80 @@ export type GetObjectInfoResponse = ExcludeErrorInfo<LkpGetObjectInfoResponse>;
         },
     },
 })
-export default class ElactDocsService extends MoleculerService<Settings> {
-    private soapClient!: Client;
-    private useTokenService = false;
+export default class ElactDocsService extends Service<typeof settings> {
+    declare private soapClient: SoapClient;
+    declare private s3Client: Minio.Client;
+
+    /*
+     *  Actions
+     */
+
+    // BULK
+    @action({
+        name: 'bulkGetContractsList',
+        params: {
+            regNum: 'string|numeric|length:8',
+            items: {
+                type: 'array',
+                items: 'string|min:1|max:19',
+            },
+        },
+        description:
+            'Запрос сведений о частично подписанном / подписанном документе электронного актирования',
+    })
+    public async bulkGetContractsList(
+        this: This,
+        ctx: Context<BulkGetContractsListRequest>,
+    ): Promise<GetContractsListResponse[]> {
+        return await Promise.all(
+            ctx.params.items.map((contractRegNum) =>
+                this.actions.getContractsList(
+                    {
+                        regNum: ctx.params.regNum,
+                        contractRegNum,
+                    },
+                    {
+                        parentCtx: ctx,
+                    },
+                ),
+            ),
+        );
+    }
+
+    @action({
+        name: 'bulkGetObjectInfo',
+        params: {
+            regNum: 'string|numeric|length:8',
+            items: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    params: {
+                        documentUid: 'uuid',
+                        documentKind: { type: 'enum', values: documentKind },
+                    },
+                },
+            },
+        },
+        description:
+            'Запрос сведений о частично подписанном / подписанном документе электронного актирования',
+    })
+    public async bulkGetObjectInfo(
+        this: This,
+        ctx: Context<BulkGetObjectInfoRequest>,
+    ): Promise<GetObjectInfoResponse[]> {
+        return await Promise.all(
+            ctx.params.items.map((item) =>
+                this.actions.getObjectInfo(
+                    { ...item, regNum: ctx.params.regNum },
+                    {
+                        parentCtx: ctx,
+                        timeout: 20000,
+                    },
+                ),
+            ),
+        );
+    }
 
     @action({
         name: 'getContractsList',
@@ -103,6 +186,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
                                 KPP: 'string',
                             },
                         },
+                        cacheFiles: 'boolean|optional|default:false',
                     },
                 },
                 {
@@ -111,6 +195,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
                     props: {
                         regNum: 'string|numeric|length:8',
                         contractRegNum: 'string|min:1|max:19',
+                        cacheFiles: 'boolean|optional|default:false',
                     },
                 },
             ],
@@ -118,6 +203,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         description: 'Запрос сведений о контрактах поставщика',
     })
     public async getContractsList(
+        this: This,
         ctx: Context<GetContractsListParams>,
     ): Promise<GetContractsListResponse> {
         const [error, content] = await this.executeRequest<LkpGetContractsListResponse>(
@@ -127,8 +213,32 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         if (error) {
             throw error;
         }
+
+        const items = content.contractList?.contractInfo || [];
+        if (ctx.params.cacheFiles) {
+            for (const item of items) {
+                try {
+                    const res = await fetch(item.url);
+                    if (!res.ok || !res.body) {
+                        throw new Error('Incorrect response');
+                    }
+                    await this.s3Client.putObject(
+                        this.settings.s3.defaultBucketName,
+                        item.regNumber,
+                        Readable.from(res.body),
+                    );
+                    item.url = await this.s3Client.presignedGetObject(
+                        this.settings.s3.defaultBucketName,
+                        item.regNumber,
+                    );
+                } catch (error) {
+                    this.logger.error(`Couldn't download file - ${item.url}`, error);
+                }
+            }
+        }
+
         return {
-            items: content.contractList?.contractInfo || [],
+            items,
         };
     }
 
@@ -144,6 +254,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         description: 'Запрос сведений о поставщике и его подписантах',
     })
     public async getParticipantInfo(
+        this: This,
         ctx: Context<GetParticipantInfoParams>,
     ): Promise<GetParticipantInfoResponse> {
         const [error, content] = await this.executeRequest<
@@ -214,7 +325,10 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         description:
             'Запрос сведений о частично подписанных / подписанных документах электронного актирования',
     })
-    public async getObjectList(ctx: Context<GetObjectListParams>): Promise<GetObjectListResponse> {
+    public async getObjectList(
+        this: This,
+        ctx: Context<GetObjectListParams>,
+    ): Promise<GetObjectListResponse> {
         const [error, content] = await this.executeRequest<LkpGetObjectListResponse>(
             'lkpGetObjectList',
             ctx,
@@ -237,7 +351,10 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         description:
             'Запрос сведений о частично подписанном / подписанном документе электронного актирования',
     })
-    public async getObjectInfo(ctx: Context<GetObjectInfoParams>): Promise<GetObjectInfoResponse> {
+    public async getObjectInfo(
+        this: This,
+        ctx: Context<GetObjectInfoParams>,
+    ): Promise<GetObjectInfoResponse> {
         const [error, content, rawContent] = await this.executeRequest<LkpGetObjectInfoResponse>(
             'lkpGetObjectInfo',
             ctx,
@@ -249,8 +366,16 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         return content;
     }
 
+    /*
+     *  Methods
+     */
+
     @method
-    private async executeRequest<R, P extends {} = {}>(method: string, ctx: Context<P>) {
+    private async executeRequest<R, P extends {} = {}>(
+        this: This,
+        method: string,
+        ctx: Context<P>,
+    ) {
         let [error, content, rawContent] = await executeSoapRequest<R, P>(
             this.soapClient,
             method,
@@ -273,45 +398,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
     }
 
     @method
-    protected async resolveUserToken(ctx: Context<{ regNum: string }, { token?: string }>) {
-        if (ctx.meta.token) {
-            ctx.locals.usertoken = ctx.meta.token;
-            delete ctx.meta.token;
-        } else if (this.useTokenService) {
-            const usertoken = await ctx.call<GetTokenResponse, GetTokenParams>(
-                `${this.settings.tokenService}.getToken`,
-                {
-                    regNum: ctx.params.regNum,
-                },
-            );
-            if (!usertoken) {
-                throw new TokenNotFoundError();
-            }
-            ctx.locals.usertoken = usertoken;
-        } else {
-            throw new TokenNotProvidedError();
-        }
-    }
-
-    @method
-    private setIsTokenServiceAvailable() {
-        const currentValue = this.useTokenService;
-
-        const list = this.broker.registry.getServiceList({
-            skipInternal: true,
-            onlyAvailable: true,
-        });
-        this.useTokenService =
-            list.find((v) => v.name.toLowerCase() === this.settings.tokenService.toLowerCase()) !==
-            undefined;
-
-        if (currentValue !== this.useTokenService) {
-            this.logger.debug(`useTokenService: ${currentValue} -> ${this.useTokenService}`);
-        }
-    }
-
-    @method
-    protected convertDateParams(ctx: Context<any>) {
+    protected convertDateParams(this: This, ctx: Context<any>) {
         if ('fromDate' in ctx.params && typeof ctx.params.fromDate === 'object') {
             ctx.params.fromDate = ctx.params.fromDate.toISOString();
         }
@@ -321,7 +408,7 @@ export default class ElactDocsService extends MoleculerService<Settings> {
     }
 
     @method
-    private enforceParametersOrder(params: object, method: string) {
+    private enforceParametersOrder(this: This, params: object, method: string) {
         let order: string[] = [];
         const orderedParams = new Map<string, any>();
 
@@ -393,26 +480,25 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         return mapToObject(orderedParams);
     }
 
-    @event({
-        name: '$services.changed',
-        context: true,
-    })
-    protected onServiceChanged(ctx: Context<any>) {
-        this.setIsTokenServiceAvailable();
-    }
+    @method
+    private async initS3(this: This) {
+        if (!this.settings.s3) {
+            return;
+        }
+        this.s3Client = new Minio.Client(this.settings.s3);
 
-    @event({
-        name: '$node.disconnected',
-        context: true,
-    })
-    protected onNodeDisconnected(ctx: Context<{ node: BrokerNode; unexpected: boolean }>) {
-        if (ctx.params.unexpected) {
-            this.setIsTokenServiceAvailable();
+        const bucketExists = await this.s3Client.bucketExists(this.settings.s3.defaultBucketName);
+        if (!bucketExists) {
+            await this.s3Client.makeBucket(this.settings.s3.defaultBucketName);
         }
     }
 
+    /*
+     *  Lifecycle methods
+     */
+
     @started
-    public async started() {
+    public async started(this: This) {
         const highestVersionFolder = await getHighestVersionFolder(this.settings.elact.schemas);
 
         const pathToWSDL = path.join(
@@ -426,6 +512,6 @@ export default class ElactDocsService extends MoleculerService<Settings> {
         });
         this.soapClient.setEndpoint(this.settings.elact.endpoint);
 
-        this.setIsTokenServiceAvailable();
+        await this.initS3();
     }
 }

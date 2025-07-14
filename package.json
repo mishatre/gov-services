@@ -1,30 +1,22 @@
 {
     "name": "eis-services",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "",
     "type": "module",
-    "packageManager": "pnpm@10.6.4",
+    "packageManager": "pnpm@10.11.0",
     "exports": "./dist/services/*.service.mjs",
     "scripts": {
         "compose:up": "DOPPLER_TOKEN=\"$(doppler configs tokens create --project elact --config dev api-elact-token --plain --max-age 1m)\" docker compose -f ./docker-compose.yml up",
-        "build": "pnpm run build:config && esbuild ./src/services/*.service.ts --target=es2022 --sourcemap --bundle --format=esm --platform=node --external:moleculer --external:@moleculer/lab --external:@moleculer-lab/agent --external:minio --external:rss-parser  --external:iconv-lite --external:soap --external:cbor-x --external:cbor-extract --external:cheerio --external:ioredis --external:undici --external:sequelize --external:sqlite3 --external:unzip-stream --external:moleculer-db --external:moleculer-db-adapter-sequelize --outdir=./dist/services --out-extension:.js=.mjs",
+        "build": "pnpm run build:config && esbuild ./src/services/*.service.ts --target=es2022 --sourcemap --bundle --format=esm --platform=node --external:moleculer --external:@moleculer/lab --external:@moleculer-lab/agent --external:minio --external:rss-parser  --external:iconv-lite --external:soap --external:papaparse --external:cbor-x --external:cbor-extract --external:cheerio --external:ioredis --external:undici --external:sequelize --external:sqlite3 --external:unzip-stream --external:moleculer-db --external:moleculer-db-adapter-sequelize --external:moleculer-cron --outdir=./dist/services --out-extension:.js=.mjs",
         "build:config": "esbuild ./moleculer.config.ts --sourcemap --bundle --platform=node --packages=external --external:@moleculer/lab --format=esm --outfile=./dist/moleculer.config.mjs",
         "start": "moleculer-runner-esm --config ./moleculer.config.mjs ./dist/services/**.service.mjs",
-        "start:dev": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/*.service.ts",
-        "start:compose:dev": "tsx ./node_modules/moleculer/bin/moleculer-runner.mjs -e ./dist/services/eis-update.service.ts",
-        "start:dev:eruz": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/eruz.service.ts",
-        "start:dev:elact-docs": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/elact-docs.service.ts ./src/services/eruz.service.ts ./src/services/lab.service.ts",
-        "start:dev:eruz-docs": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/eis-update.service.ts ./src/services/lab.service.ts",
-        "start:lab": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/lab.service.ts",
-        "start:dev:elact-utils": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/elact-utils.service.ts",
-        "start:dev:elact-docs:no-lab": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/elact-docs.service.ts ./src/services/eruz.service.ts",
-        "start:eis-docs": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/eis-docs.service.ts ./src/services/elact-docs.service.ts",
-        "start:main": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/elact-docs.service.ts ./src/services/elact-utils.service.ts ./src/services/eruz.service.ts ./src/services/lab.service.ts"
+        "start:dev": "doppler run -- tsx ./node_modules/moleculer/bin/moleculer-runner.mjs --config ./moleculer.config.ts -e --hot ./src/services/*.service.ts"
     },
     "keywords": [],
     "author": "M.Tregub",
     "license": "MIT",
     "devDependencies": {
+        "@ianvs/prettier-plugin-sort-imports": "^4.5.1",
         "@trivago/prettier-plugin-sort-imports": "^5.2.2",
         "@types/lodash": "^4.17.16",
         "@types/node": "^20.17.30",
@@ -32,6 +24,7 @@
         "@types/unzip-stream": "^0.3.4",
         "esbuild": "^0.24.2",
         "moldecor": "github:mishatre/moldecor#heads/next",
+        "prettier": "^3.6.2",
         "typescript": "^5.8.3"
     },
     "dependencies": {
@@ -44,16 +37,19 @@
         "cheerio": "1.0.0-rc.12",
         "dotenv": "^16.5.0",
         "fast-xml-parser": "^4.5.3",
+        "fuse.js": "^7.1.0",
         "iconv-lite": "^0.6.3",
         "ioredis": "^5.6.1",
         "lodash": "^4.17.21",
         "lowdb": "^7.0.1",
         "minio": "^8.0.5",
         "moleculer": "0.14.34",
+        "moleculer-cron": "^0.0.7",
         "moleculer-db": "^0.8.28",
         "moleculer-db-adapter-sequelize": "^0.2.19",
         "nats": "^2.29.3",
         "node-html-parser": "^6.1.13",
+        "p-limit": "^6.2.0",
         "papaparse": "^5.5.2",
         "rss-parser": "^3.13.0",
         "sequelize": "^6.37.7",
@@ -62,7 +58,8 @@
         "telegraf": "^4.16.3",
         "tsx": "^4.19.3",
         "undici": "^6.21.2",
-        "unzip-stream": "^0.3.4"
+        "unzip-stream": "^0.3.4",
+        "zod": "^4.0.5"
     },
     "pnpm": {
         "neverBuiltDependencies": []

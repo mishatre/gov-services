@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
 import { action, method, service, started } from 'moldecor';
-import { Context, Errors, Service as MoleculerService } from 'moleculer';
+import { Context, Errors, Service } from 'moleculer';
 import path from 'node:path/posix';
-import { Client, createClientAsync } from 'soap';
+import { Client as SoapClient, createClientAsync } from 'soap';
 
 import { ExcludeErrorInfo, ExcludeNoData } from '../types/basic.js';
 import {
@@ -19,17 +19,8 @@ import {
     NSIKinds,
     SubsystemType,
 } from '../types/eis-docs.js';
-import { getHighestVersionFolder, getRequestShim } from '../utils/index.js';
+import { defineSettings, getHighestVersionFolder, getRequestShim } from '../utils/index.js';
 import { executeSoapRequest } from '../utils/soap.js';
-
-interface Settings {
-    testMode?: boolean;
-    eis: {
-        schemas: string;
-        wsdl: string;
-        endpoint: string;
-    };
-}
 
 // Actions
 
@@ -118,6 +109,17 @@ const subsystemTypes = [
 
 // useProxy();
 
+const settings = defineSettings({
+    testMode: false,
+    eis: {
+        schemas: './schemas/eis',
+        wsdl: 'GetDocsWS/GetDocsLegalEntity/WSDL/WebServiceGetDocsLE.wsdl',
+        endpoint:
+            process.env.EIS_DOCS ??
+            'https://eruz.zakupki.gov.ru/eis-integration/services/getDocsLE',
+    },
+});
+
 @service({
     name: 'eis-docs',
 
@@ -126,19 +128,14 @@ const subsystemTypes = [
         $author: 'Mikhail Tregub',
     },
 
-    settings: {
-        testMode: false,
-        eis: {
-            schemas: './schemas/eis',
-            wsdl: 'GetDocsWS/GetDocsLegalEntity/WSDL/WebServiceGetDocsLE.wsdl',
-            endpoint:
-                process.env.EIS_DOCS ??
-                'https://eruz.zakupki.gov.ru/eis-integration/services/getDocsLE',
-        },
-    },
+    settings,
 })
-export default class EisDocsService extends MoleculerService<Settings> {
-    private soapClient!: Client;
+export default class EisDocsService extends Service<typeof settings> {
+    declare private soapClient: SoapClient;
+
+    /*
+     *  Actions
+     */
 
     @action({
         name: 'getDocsByReestrNumber',
@@ -315,6 +312,10 @@ export default class EisDocsService extends MoleculerService<Settings> {
         };
     }
 
+    /*
+     *  Methods
+     */
+
     @method
     private async executeRequest<R extends EISDocsResponse<any>, P extends {} = {}>(
         method: string,
@@ -364,6 +365,10 @@ export default class EisDocsService extends MoleculerService<Settings> {
             mode: testMode ? 'TEST' : 'PROD',
         } as const;
     }
+
+    /*
+     *  Lifecycle methods
+     */
 
     @started
     public async started() {

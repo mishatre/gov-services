@@ -171,3 +171,5 @@ certs
 schemas
 
 *.csv
+*.txt
+*.sh

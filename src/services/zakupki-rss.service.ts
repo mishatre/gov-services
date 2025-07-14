@@ -1,16 +1,9 @@
-import { action, method, service, started } from 'moldecor';
-import { Context, Service as MoleculerService } from 'moleculer';
+import { action, method, service } from 'moldecor';
+import { Context, Service } from 'moleculer';
 import Parser from 'rss-parser';
 
 import { fromShortDate, makeShortDate } from '../utils/date.js';
-
-interface Settings {
-    baseUrl: string;
-    rss: {
-        contract: string;
-        order: string;
-    };
-}
+import { defineSettings } from '../utils/index.js';
 
 // Actions
 
@@ -72,17 +65,23 @@ enum ContractStatus {
     Unknown = 'UNKNOWN',
 }
 
+const settings = defineSettings({
+    baseUrl: 'https://zakupki.gov.ru/',
+    rss: {
+        contract: '/epz/contract/search/rss',
+        order: '/epz/order/extendedsearch/rss.html',
+    },
+});
+
 @service({
     name: 'zakupki-rss',
-    settings: {
-        baseUrl: 'https://zakupki.gov.ru/',
-        rss: {
-            contract: '/epz/contract/search/rss',
-            order: '/epz/order/extendedsearch/rss.html',
-        },
-    },
+    settings,
 })
-export default class ZakupkiRSSService extends MoleculerService<Settings> {
+export default class ZakupkiRSSService extends Service<typeof settings> {
+    /*
+     *  Actions
+     */
+
     @action({
         name: 'searchContractsInfo',
         params: {
@@ -268,6 +267,10 @@ export default class ZakupkiRSSService extends MoleculerService<Settings> {
         }
     }
 
+    /*
+     *  Methods
+     */
+
     @method
     private buildURL(type: RSSType, searchParams: URLSearchParams) {
         const url = new URL(this.getRSSPartByType(type), this.settings.baseUrl);
@@ -325,7 +328,4 @@ export default class ZakupkiRSSService extends MoleculerService<Settings> {
                 return ContractStatus.Unknown;
         }
     }
-
-    @started
-    protected async started() {}
 }
