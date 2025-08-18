@@ -6,6 +6,7 @@ import { Context, Errors, Service } from 'moleculer';
 import CronMixin from 'moleculer-cron';
 import DbService from 'moleculer-db';
 import SqlAdapter from 'moleculer-db-adapter-sequelize';
+import { createWriteStream } from 'node:fs';
 import path from 'node:path/posix';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -320,7 +321,10 @@ export default class TnvedService extends Service<typeof settings> {
 
         task?.setProgress(`Fething object - '${objectName}'`);
 
-        const stream = await this.s3Client.getObject(this.settings.bucketName, objectName);
+        const stream = await this.s3Client.getObject(
+            this.settings.s3.defaultBucketName,
+            objectName,
+        );
 
         const unzipStream = Unzip.Parse();
         stream.pipe(unzipStream);
@@ -363,7 +367,11 @@ export default class TnvedService extends Service<typeof settings> {
                 continue;
             }
 
-            const parser = Papa.parse(Papa.NODE_STREAM_INPUT, { header: false, delimiter: '|' });
+            const parser = Papa.parse(Papa.NODE_STREAM_INPUT, {
+                header: false,
+                delimiter: '|',
+                fastMode: true,
+            });
 
             let header:
                 | {

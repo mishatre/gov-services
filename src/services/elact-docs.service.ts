@@ -56,6 +56,7 @@ export type GetObjectInfoResponse = ExcludeErrorInfo<LkpGetObjectInfoResponse>;
 type This = ElactDocsService & typeof TokenServiceMixin;
 
 const settings = defineSettings({
+    $secureSettings: ['s3.secretKey'],
     tokenService: process.env.ELACT_TOKEN_SERVICE || 'elact-eruz',
     elact: {
         schemas: './schemas/elact',
@@ -64,7 +65,6 @@ const settings = defineSettings({
             process.env.ELACT_SUPPLIER_DOCS ??
             'https://int44.zakupki.gov.ru/eis-integration/elact/supplier-docs',
     },
-    dataUrl: 'https://data.nalog.ru/files/tnved/tnved.ZIP',
     s3: getS3EnvConfig('S3', 'ELACT_DOCS', {
         defaultBucketName: 'elact-docs',
     }),
@@ -138,7 +138,7 @@ export default class ElactDocsService extends Service<typeof settings> {
                 items: {
                     type: 'object',
                     params: {
-                        documentUid: 'uuid',
+                        documentUid: 'string',
                         documentKind: { type: 'enum', values: documentKind },
                     },
                 },
@@ -345,7 +345,7 @@ export default class ElactDocsService extends Service<typeof settings> {
         name: 'getObjectInfo',
         params: {
             regNum: 'string|numeric|length:8',
-            documentUid: 'uuid',
+            documentUid: 'string',
             documentKind: { type: 'enum', values: documentKind },
         },
         description:

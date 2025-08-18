@@ -1,4 +1,4 @@
-import { Temporal } from "@js-temporal/polyfill";
+import { Temporal } from '@js-temporal/polyfill';
 
 export function addDays(date: Date, days: number) {
     const result = new Date(date);
@@ -21,8 +21,18 @@ export function combineDateTimeString(date: string, time: string) {
     return new Date(year, month - 1, day, hours, minutes, seconds);
 }
 
-export function fromShortDate(dateString: string) {
-    const [day, month, year] = dateString.split('.').map(Number);
+export function fromShortDate(dateString: string, separator = '.') {
+    const [day, month, year] = dateString.split(separator).map(Number);
+    return new Date(year, month - 1, day);
+}
+
+export function fromShortDMYDate(dateString: string, separator = '.') {
+    const [day, month, year] = dateString.split(separator).map(Number);
+    return new Date(year, month - 1, day);
+}
+
+export function fromShortYMDDate(dateString: string, separator = '.') {
+    const [year, month, day] = dateString.split(separator).map(Number);
     return new Date(year, month - 1, day);
 }
 
@@ -47,7 +57,7 @@ export function getLastSaturday(fromDate = new Date()) {
     const date = new Date(fromDate);
     // getDay(): 0 = Sunday, 6 = Saturday
     const day = date.getDay();
-    const diff = (day === 6) ? 0 : day + 1;
+    const diff = day === 6 ? 0 : day + 1;
     date.setDate(date.getDate() - diff);
     date.setHours(0, 0, 0, 0); // optional: reset time to midnight
     return date;

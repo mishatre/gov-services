@@ -99,10 +99,10 @@ class LabEventReporter extends Reporters.Base {
 }
 
 class LabEventExporter extends Exporters.Base {
-    public declare broker: ServiceBroker;
-    public declare timer: NodeJS.Timeout | null;
-    private declare defaultTags: Function | any;
-    private declare Promise: PromiseConstructor;
+    declare public broker: ServiceBroker;
+    declare public timer: NodeJS.Timeout | null;
+    declare private defaultTags: Function | any;
+    declare private Promise: PromiseConstructor;
     private queue: Span[];
 
     constructor(opts: GenericObject) {
@@ -127,11 +127,12 @@ class LabEventExporter extends Exporters.Base {
     }
     stop() {
         return (
-            this.timer && (clearInterval(this.timer), (this.timer = null)), this.Promise.resolve()
+            this.timer && (clearInterval(this.timer), (this.timer = null)),
+            this.Promise.resolve()
         );
     }
     spanFinished(span: Span) {
-        this.queue.push(span), this.timer || this.flush();
+        (this.queue.push(span), this.timer || this.flush());
     }
     async flush() {
         if (0 == this.queue.length) {
@@ -146,10 +147,10 @@ class LabEventExporter extends Exporters.Base {
             data = list;
         }
         if (this.opts.broadcast) {
-            this.logger.debug(`Send tracing spans (${list.length} spans) broadcast event.`),
-                this.broker.broadcast('$lab.tracing.spans', data, {
-                    groups: this.opts.groups,
-                });
+            this.logger.debug(`Send tracing spans (${list.length} spans) broadcast event.`);
+            this.broker.broadcast('$lab.tracing.spans', data, {
+                groups: this.opts.groups,
+            });
         } else {
             this.logger.debug(`Send tracing spans (${list.length} spans) event.`);
             this.broker.emit('$lab.tracing.spans', data, {
@@ -169,13 +170,13 @@ class LabEventExporter extends Exporters.Base {
 }
 
 class LabEventLogger extends Loggers.Base {
-    public declare broker: ServiceBroker;
-    public declare opts: GenericObject;
-    public declare queue: GenericObject[];
-    public declare timer: NodeJS.Timeout | null;
-    private declare Promise: PromiseConstructor;
+    declare public broker: ServiceBroker;
+    declare public opts: GenericObject;
+    declare public queue: GenericObject[];
+    declare public timer: NodeJS.Timeout | null;
+    declare private Promise: PromiseConstructor;
 
-    private declare objectPrinter: (object: unknown) => string;
+    declare private objectPrinter: (object: unknown) => string;
 
     constructor(opts: GenericObject) {
         super(opts);
@@ -196,13 +197,17 @@ class LabEventLogger extends Loggers.Base {
             });
     }
     init(loggerFactory: LoggerFactory) {
-        super.init(loggerFactory),
-            this.opts.interval > 0 &&
-                ((this.timer = setInterval(() => this.sendLogEntries(), 1e3 * this.opts.interval)),
-                this.timer.unref());
+        super.init(loggerFactory);
+        if (this.opts.interval > 0) {
+            this.timer = setInterval(() => this.sendLogEntries(), 1e3 * this.opts.interval);
+            this.timer.unref();
+        }
     }
     stop() {
-        return this.timer && clearInterval(this.timer), this.Promise.resolve();
+        if (this.timer) {
+            clearInterval(this.timer);
+        }
+        return this.Promise.resolve();
     }
     printArgs(args: unknown[]) {
         return args.map((p) => (_.isObject(p) || Array.isArray(p) ? this.objectPrinter(p) : p));

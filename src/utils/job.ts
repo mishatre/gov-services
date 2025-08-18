@@ -1,6 +1,5 @@
-
-import { ServiceSchema } from "moleculer";
-import assert from "node:assert";
+import { ServiceSchema } from 'moleculer';
+import assert from 'node:assert';
 
 interface JobSchema {
     name?: string;
@@ -14,11 +13,7 @@ interface JobSchema {
     // }
 }
 
-export function job<
-    P extends JobSchema | string,
-    S,
-    T extends (...args: any[]) => any,
->(params: P) {
+export function job<P extends JobSchema | string, S, T extends (...args: any[]) => any>(params: P) {
     return function (handler: T, context: ClassMethodDecoratorContext<S, T>) {
         assert(
             context.kind === 'method',
@@ -26,14 +21,17 @@ export function job<
         );
 
         const metadata = context.metadata as Partial<ServiceSchema>;
-        Object.assign(metadata, {
-            settings: {
-                ...(metadata.settings || {}),
-                cronJobs: []
-            }
-        });
+        if (!metadata.settings?.cronJobs) {
+            Object.assign(metadata, {
+                settings: {
+                    ...(metadata.settings || {}),
+                    cronJobs: [],
+                },
+            });
+        }
 
-        const name = typeof params === 'string' || !params.name ? String(context.name) : params.name;
+        const name =
+            typeof params === 'string' || !params.name ? String(context.name) : params.name;
         const cron = typeof params === 'string' ? params : params.cron;
         metadata.settings!.cronJobs.push({
             name,
@@ -49,6 +47,6 @@ export function job<
             //         this[params.hooks.after]?.();
             //     }
             // }
-        })
+        });
     };
 }

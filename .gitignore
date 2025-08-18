@@ -166,6 +166,7 @@ dist
 *.md
 dist
 .data
+.pnpm-store
 eruz
 certs
 schemas

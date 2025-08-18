@@ -11,7 +11,6 @@ const settings = defineSettings({
 
 @service({
     name: 'token-service-mixin',
-    version: 2,
 
     metadata: {
         $description: ``,

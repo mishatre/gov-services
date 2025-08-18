@@ -155,3 +155,8 @@ export function toFirstUpperCase(str: string) {
 export function defineSettings<T extends object>(settings: ServiceSettingsSchema<T>) {
     return settings;
 }
+
+export function ensureArray<T>(value: T | T[] | null | undefined): T[] {
+    if (value == null) return [];
+    return Array.isArray(value) ? value : [value];
+}
