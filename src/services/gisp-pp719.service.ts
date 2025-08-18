@@ -5,6 +5,7 @@ import { Context, Errors, Service } from 'moleculer';
 import CronMixin from 'moleculer-cron';
 import DbService from 'moleculer-db';
 import SqlAdapter from 'moleculer-db-adapter-sequelize';
+import { createReadStream } from 'node:fs';
 import { PassThrough, Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import pLimit from 'p-limit';
@@ -15,7 +16,12 @@ import Unzip from 'unzip-stream';
 
 import TasksMixin, { Task, task, withTask } from '../mixins/tasks-mixin.js';
 import { runConcurrently } from '../utils/concurrency.js';
-import { fromShortDate, getStartOfDayUTCInTimezone } from '../utils/date.js';
+import {
+    fromShortDMYDate,
+    fromShortDate,
+    fromShortYMDDate,
+    getStartOfDayUTCInTimezone,
+} from '../utils/date.js';
 import { defineSettings } from '../utils/index.js';
 import { job } from '../utils/job.js';
 import { getS3EnvConfig } from '../utils/s3.js';
@@ -184,26 +190,36 @@ const convertKeys = {
 };
 
 function convertValue(value: string, key: string) {
+    let result;
     if (convertKeys.boolean.has(key)) {
         if (value === '-') {
-            return undefined;
+            result = undefined;
+        } else {
+            result = value.toLowerCase() !== 'Нет'.toLowerCase();
         }
-        return value.toLowerCase() !== 'Нет'.toLowerCase();
     } else if (convertKeys.date.has(key)) {
         if (value === '-') {
             return undefined;
+        } else {
+            result = fromShortYMDDate(value, '-');
         }
-        return fromShortDate(value);
     } else if (convertKeys.number.has(key)) {
         if (value === '-') {
-            return undefined;
+            result = undefined;
+        } else {
+            result = parseFloat(value);
         }
-        return parseFloat(value);
     } else if (value === '-') {
-        return '';
+        result = '';
+    } else {
+        result = value;
     }
 
-    return value;
+    if (typeof result === 'number' && isNaN(result)) {
+        result = undefined;
+    }
+
+    return result;
 }
 
 const agent = new Agent({
@@ -249,6 +265,7 @@ const model = {
 type This = GispPP719Service & DbService & typeof CronMixin & TasksMixin;
 
 const settings = defineSettings({
+    $secureSettings: ['s3.secretKey'],
     dataUrl: 'https://gisp.gov.ru/opendata/files/gispdata-current-pp719-products-structure.csv',
     gqlUrl: 'https://gisp.gov.ru/pp719v2/pub/prod/b/',
     s3: getS3EnvConfig('S3', 'GISP_PP719', {
@@ -282,12 +299,12 @@ const settings = defineSettings({
         },
     },
 
-    // Disable unnecessary moleculer-db actions
+    // Hide unnecessary moleculer-db actions
     actions: {
-        create: false,
-        insert: false,
-        update: false,
-        remove: false,
+        create: { visibility: 'protected' },
+        insert: { visibility: 'protected' },
+        update: { visibility: 'protected' },
+        remove: { visibility: 'protected' },
     },
 })
 export default class GispPP719Service extends Service<typeof settings> {
@@ -550,7 +567,7 @@ export default class GispPP719Service extends Service<typeof settings> {
 
         const isStale = await this.isDataStale();
         if (!isStale && !force) {
-            task?.setProgress('Sync skipped - data not stale');
+            task.setProgress('Sync skipped - data not stale');
             return {
                 success: false,
                 reason: 'not_stale',
@@ -587,7 +604,7 @@ export default class GispPP719Service extends Service<typeof settings> {
             return;
         }
 
-        task?.setProgress('Sync finished');
+        task.setProgress('Sync finished');
 
         return {
             success: true,
@@ -599,14 +616,22 @@ export default class GispPP719Service extends Service<typeof settings> {
     private async fetchData(this: This) {
         this.logger.info('Fetching data');
 
-        const task = this.getCurrentTask();
+        const task = this.getCurrentTask<typeof this.fetchData>();
 
-        const res = await fetch(this.settings.dataUrl, {
-            dispatcher: agent,
-            signal: task?.signal,
-        });
+        let res;
+        try {
+            res = await fetch(this.settings.dataUrl, {
+                dispatcher: agent,
+                signal: task.signal,
+            });
+        } catch (error) {
+            this.logger.error('Fetch data error:', error);
+            task.setProgress(`Fetching: Fetch error`);
+            return false;
+        }
 
         if (!res.ok || !res.body) {
+            task.setProgress(`Fetching: Invalid response`);
             return false;
         }
 
@@ -615,27 +640,34 @@ export default class GispPP719Service extends Service<typeof settings> {
 
         // Transform stream that counts bytes
         const progressStream = new Transform({
-            transform: (chunk, encoding, callback) => {
+            transform: (chunk, _, callback) => {
                 downloaded += chunk.length;
                 if (contentLength) {
                     const percent = ((downloaded / contentLength) * 100).toFixed(2);
-                    task?.setProgress(`Fetching: ${percent}%`);
+                    task.setProgress(`Fetching: ${percent}%`);
                 } else {
-                    task?.setProgress(`Fetching: ${downloaded} bytes`);
+                    task.setProgress(`Fetching: ${downloaded} bytes`);
                 }
                 callback(null, chunk);
             },
         });
 
-        // const stream = createReadStream('/Users/mt/Downloads/gispdata-current-pp719-products-structure.csv');
-        const stream = Readable.from(res.body).pipe(progressStream);
-
-        await this.s3Client.putObject(
+        const stream = new PassThrough();
+        const pendingPut = this.s3Client.putObject(
             this.settings.s3.defaultBucketName,
             `gispdata-current-pp719-products-structure.csv`,
             stream,
             contentLength,
         );
+        const pendingPipline = pipeline(Readable.from(res.body), progressStream, stream);
+
+        try {
+            await Promise.all([pendingPut, pendingPipline]);
+        } catch (error) {
+            this.logger.error('Fetch/uploading error:', error);
+            task.setProgress(`Fetching: Fetch/Upload error`);
+            return false;
+        }
 
         return true;
     }
@@ -645,22 +677,24 @@ export default class GispPP719Service extends Service<typeof settings> {
     private async processData(this: This) {
         this.logger.info('Processing data');
 
-        const task = this.getCurrentTask() as Task<ReturnType<typeof this.processData>>;
+        const task = this.getCurrentTask<typeof this.processData>();
 
         const objectName = 'gispdata-current-pp719-products-structure.csv';
 
         await this.adapter.clear();
 
-        task?.setProgress(`Fething object - '${objectName}'`);
+        task.setProgress(`Fething object - '${objectName}'`);
 
         const stream = await this.s3Client.getObject(
             this.settings.s3.defaultBucketName,
             objectName,
         );
-        // const stream = createReadStream("/Users/mt/Downloads/gispdata-current-pp719-products-structure (1).csv");
+        // const stream = createReadStream(
+        //     '/Users/mt/Downloads/gispdata-current-pp719-products-structure (2).csv',
+        // );
 
         const BATCH_INSERT_LIMIT = 1000;
-        const parser = Papa.parse(Papa.NODE_STREAM_INPUT, { header: true });
+        const parser = Papa.parse(Papa.NODE_STREAM_INPUT, { header: true, delimiter: ',' });
 
         const writeLimit = pLimit(3);
         let counter = 0;
@@ -669,7 +703,7 @@ export default class GispPP719Service extends Service<typeof settings> {
         const fn = async (stream: AsyncIterable<PP719RawRecord>) => {
             const items: PP719Record[] = [];
             for await (const value of stream) {
-                if (task?.signal.aborted) {
+                if (task.signal.aborted) {
                     // Don't and insert any more rows in db
                     return;
                 }
@@ -680,7 +714,7 @@ export default class GispPP719Service extends Service<typeof settings> {
                         writeLimit(async () => {
                             await this.insertInTransation(batch);
                             counter += batch.length;
-                            task?.setProgress(`Processing record - ${counter}/...`);
+                            task.setProgress(`Processing record - ${counter}/...`);
                         }),
                     );
                     items.length = 0;
@@ -692,7 +726,7 @@ export default class GispPP719Service extends Service<typeof settings> {
                     writeLimit(async () => {
                         await this.insertInTransation(batch);
                         counter += batch.length;
-                        task?.setProgress(`Processing record - ${counter}/...`);
+                        task.setProgress(`Processing record - ${counter}/...`);
                     }),
                 );
                 items.length = 0;
@@ -707,10 +741,12 @@ export default class GispPP719Service extends Service<typeof settings> {
             fn,
         );
 
-        if (task?.signal.aborted) {
+        if (task.signal.aborted) {
         }
 
         await Promise.all(pendingWrites);
+
+        await this.clearCache();
     }
 
     @method
@@ -822,6 +858,7 @@ export default class GispPP719Service extends Service<typeof settings> {
         this.s3Client = new Minio.Client(this.settings.s3);
 
         const bucketExists = await this.s3Client.bucketExists(this.settings.s3.defaultBucketName);
+
         if (!bucketExists) {
             await this.s3Client.makeBucket(this.settings.s3.defaultBucketName);
         }

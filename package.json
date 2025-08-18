@@ -1,9 +1,9 @@
 {
     "name": "eis-services",
-    "version": "1.1.0",
+    "version": "1.1.2",
     "description": "",
     "type": "module",
-    "packageManager": "pnpm@10.11.0",
+    "packageManager": "pnpm@10.14.0",
     "exports": "./dist/services/*.service.mjs",
     "scripts": {
         "compose:up": "DOPPLER_TOKEN=\"$(doppler configs tokens create --project elact --config dev api-elact-token --plain --max-age 1m)\" docker compose -f ./docker-compose.yml up",
