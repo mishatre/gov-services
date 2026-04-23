@@ -3,6 +3,7 @@ import type { BrokerOptions, MetricRegistry, ServiceBroker } from 'moleculer';
 import { Errors } from 'moleculer';
 
 import './src/lab.js';
+import { ZodValidator } from './src/utils/validator.js';
 
 /**
  * Moleculer ServiceBroker configuration file
@@ -64,7 +65,8 @@ const brokerConfig: BrokerOptions = {
     // More info: https://moleculer.services/docs/0.14/networking.html
     // Note: During the development, you don't need to define it because all services will be loaded locally.
     // In production you can set it via `TRANSPORTER=nats://localhost:4222` environment variable.
-    transporter: 'nats://localhost:4222',
+    // transporter: 'nats://localhost:4222',
+    transporter: 'nats://nats.eis.orb.local:4222',
 
     // Define a cacher.
     // More info: https://moleculer.services/docs/0.14/caching.html
@@ -153,7 +155,7 @@ const brokerConfig: BrokerOptions = {
     },
 
     // Enable action & event parameter validation. More info: https://moleculer.services/docs/0.14/validating.html
-    validator: true,
+    validator: new ZodValidator(),
 
     // Enable/disable built-in metrics function. More info: https://moleculer.services/docs/0.14/metrics.html
     metrics: {
