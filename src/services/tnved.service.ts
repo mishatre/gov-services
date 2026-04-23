@@ -1,56 +1,55 @@
-import Fuse from 'fuse.js';
-import iconv from 'iconv-lite';
-import * as Minio from 'minio';
-import { action, lifecycle, method, service, started, stopped } from 'moldecor';
-import { Context, Errors, Service } from 'moleculer';
-import CronMixin from 'moleculer-cron';
-import DbService from 'moleculer-db';
-import SqlAdapter from 'moleculer-db-adapter-sequelize';
-import { createWriteStream } from 'node:fs';
-import path from 'node:path/posix';
-import { Readable, Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import Papa from 'papaparse';
-import Sequelize from 'sequelize';
-import { fetch } from 'undici';
-import Unzip from 'unzip-stream';
+import path from 'node:path/posix'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import Fuse from 'fuse.js'
+import iconv from 'iconv-lite'
+import * as Minio from 'minio'
+import { action, lifecycle, method, service, started, stopped } from 'moldecor'
+import { type Context, Errors, Service } from 'moleculer'
+import CronMixin from 'moleculer-cron'
+import DbService from 'moleculer-db'
+import SqlAdapter from 'moleculer-db-adapter-sequelize'
+import Papa from 'papaparse'
+import Sequelize from 'sequelize'
+import { fetch } from 'undici'
+import Unzip from 'unzip-stream'
 
-import TasksMixin, { Task, task, withTask } from '../mixins/tasks-mixin.js';
-import { fromReverseShortDate, fromShortDate } from '../utils/date.js';
-import { defineSettings, toFirstUpperCase } from '../utils/index.js';
-import { getS3EnvConfig } from '../utils/s3.js';
+import TasksMixin, { type Task, task, withTask } from '../mixins/tasks-mixin.js'
+import { fromReverseShortDate, fromShortDate } from '../utils/date.js'
+import { defineSettings, toFirstUpperCase } from '../utils/index.js'
+import { getS3EnvConfig } from '../utils/s3.js'
 
 export type SyncParams = {
-    force?: boolean;
-    skipFetch?: boolean;
-};
+    force?: boolean
+    skipFetch?: boolean
+}
 
 export type SearchParams = {
-    search: string;
-    pageSize: number;
-};
+    search: string
+    pageSize: number
+}
 
 export type ListAncestorsParams = {
-    code: string;
-};
+    code: string
+}
 
 export type SyncResponse = {
-    started: boolean;
-};
+    started: boolean
+}
 
 export type TNVEDRecord = {
-    level: number;
-    code: string;
-    parentCode: string;
-    normalizedCode: string;
-    order: number;
-    startDate: Date;
-    endDate: Date;
-    name: string;
-    description: string;
-    itemsCount: number;
-    updateDate: Date;
-};
+    level: number
+    code: string
+    parentCode: string
+    normalizedCode: string
+    order: number
+    startDate: Date
+    endDate: Date
+    name: string
+    description: string
+    itemsCount: number
+    updateDate: Date
+}
 
 const model = {
     level: Sequelize.INTEGER,
@@ -64,16 +63,16 @@ const model = {
     description: Sequelize.STRING,
     itemsCount: Sequelize.INTEGER,
     updateDate: Sequelize.DATE,
-};
+}
 
-type This = TnvedService & DbService & typeof CronMixin & TasksMixin;
+type This = TnvedService & DbService & typeof CronMixin & TasksMixin
 
 const settings = defineSettings({
     dataUrl: 'https://data.nalog.ru/files/tnved/tnved.ZIP',
     s3: getS3EnvConfig('S3', 'TNVED', {
         defaultBucketName: 'tnved',
     }),
-});
+})
 
 @service({
     name: 'tnved',
@@ -110,9 +109,9 @@ const settings = defineSettings({
     },
 })
 export default class TnvedService extends Service<typeof settings> {
-    declare private adapter: SqlAdapter & { db: Sequelize.Sequelize };
-    declare private s3Client: Minio.Client;
-    declare private fuse: Fuse<TNVEDRecord>;
+    private declare adapter: SqlAdapter & { db: Sequelize.Sequelize }
+    private declare s3Client: Minio.Client
+    private declare fuse: Fuse<TNVEDRecord>
 
     /*
      *  Jobs
@@ -143,10 +142,10 @@ export default class TnvedService extends Service<typeof settings> {
         },
     })
     public actionSync(this: This, ctx: Context<SyncParams>): SyncResponse {
-        const pendingTask = withTask(this.sync(ctx.params.force, ctx.params.skipFetch));
+        const pendingTask = withTask(this.sync(ctx.params.force, ctx.params.skipFetch))
         return {
             started: !!pendingTask && pendingTask.running,
-        };
+        }
     }
 
     @action({
@@ -157,29 +156,29 @@ export default class TnvedService extends Service<typeof settings> {
         },
     })
     public search(this: This, ctx: Context<SearchParams>) {
-        const { search, pageSize } = ctx.params;
-        const normalizedQuery = search.replace(/\s+/g, '');
+        const { search, pageSize } = ctx.params
+        const normalizedQuery = search.replace(/\s+/g, '')
 
         if (!this.fuse) {
-            this.logger.warn(`Fuse.js wasn't initialized!`);
+            this.logger.warn(`Fuse.js wasn't initialized!`)
             return {
                 rows: [],
-            };
+            }
         }
 
         const result = this.fuse
             .search(search, {
                 limit: pageSize,
             })
-            .filter((res) => res.score && res.score < 0.8);
+            .filter((res) => res.score && res.score < 0.8)
 
         const exactResult = result.filter((res) => {
-            return normalizedQuery.includes(res.item.code.replace(/\s+/g, ''));
-        });
+            return normalizedQuery.includes(res.item.code.replace(/\s+/g, ''))
+        })
 
         return {
             rows: (exactResult.length > 0 ? exactResult : result).map((v) => v.item),
-        };
+        }
     }
 
     @action({
@@ -189,33 +188,33 @@ export default class TnvedService extends Service<typeof settings> {
         },
     })
     public async listAncestors(this: This, ctx: Context<ListAncestorsParams>) {
-        const { code } = ctx.params;
+        const { code } = ctx.params
 
-        const items = [];
+        const items = []
 
-        let current = code;
+        let current = code
         while (current) {
             // Fetch item with the given code
             const res = await this.actions.list({
                 page: 1,
                 pageSize: 1,
                 query: { code: current },
-            });
+            })
 
-            const item = res.rows?.[0];
+            const item = res.rows?.[0]
             if (!item) {
-                break; // Stop if not found
+                break // Stop if not found
             }
 
             if (current !== code) {
-                items.push(item);
+                items.push(item)
             }
-            current = item.parentCode; // Move up
+            current = item.parentCode // Move up
         }
 
         return {
             rows: items,
-        };
+        }
     }
 
     /*
@@ -225,109 +224,106 @@ export default class TnvedService extends Service<typeof settings> {
     @task()
     @method
     private async sync(this: This, force?: boolean, skipFetch?: boolean) {
-        const task = this.getCurrentTask();
+        const task = this.getCurrentTask()
 
         if (skipFetch === true) {
-            this.logger.warn('Fetching skipped');
+            this.logger.warn('Fetching skipped')
         } else {
             try {
-                const pendingTask = withTask(this.fetchData());
+                const pendingTask = withTask(this.fetchData())
                 if (!pendingTask) {
-                    return;
+                    return
                 }
-                const result = await pendingTask.promise;
+                const result = await pendingTask.promise
                 if (result === false) {
-                    this.logger.warn('Fetching data failed!');
-                    return;
+                    this.logger.warn('Fetching data failed!')
+                    return
                 }
             } catch (error) {
-                this.logger.error('Error during data fetch', error);
-                return;
+                this.logger.error('Error during data fetch', error)
+                return
             }
         }
 
         try {
-            const pendingTask = withTask(this.processData());
+            const pendingTask = withTask(this.processData())
             if (!pendingTask) {
-                return;
+                return
             }
-            await pendingTask.promise;
+            await pendingTask.promise
         } catch (error) {
-            this.logger.error('Error during data processing', error);
-            return;
+            this.logger.error('Error during data processing', error)
+            return
         }
 
-        task?.setProgress('Sync finished');
+        task?.setProgress('Sync finished')
 
         return {
             success: true,
-        };
+        }
     }
 
     @task()
     @method
     private async fetchData(this: This) {
-        this.logger.info('Fetching data');
+        this.logger.info('Fetching data')
 
-        const task = this.getCurrentTask();
+        const task = this.getCurrentTask()
 
         const res = await fetch(this.settings.dataUrl, {
             signal: task?.signal,
-        });
+        })
 
         if (!res.ok || !res.body) {
-            return false;
+            return false
         }
 
-        const contentLength = Number(res.headers.get('content-length'));
-        let downloaded = 0;
+        const contentLength = Number(res.headers.get('content-length'))
+        let downloaded = 0
 
         // Transform stream that counts bytes
         const progressStream = new Transform({
             transform: (chunk, encoding, callback) => {
-                downloaded += chunk.length;
+                downloaded += chunk.length
                 if (contentLength) {
-                    const percent = ((downloaded / contentLength) * 100).toFixed(2);
-                    task?.setProgress(`Fetching: ${percent}%`);
+                    const percent = ((downloaded / contentLength) * 100).toFixed(2)
+                    task?.setProgress(`Fetching: ${percent}%`)
                 } else {
-                    task?.setProgress(`Fetching: ${downloaded} bytes`);
+                    task?.setProgress(`Fetching: ${downloaded} bytes`)
                 }
-                callback(null, chunk);
+                callback(null, chunk)
             },
-        });
+        })
 
-        const stream = Readable.from(res.body).pipe(progressStream);
+        const stream = Readable.from(res.body).pipe(progressStream)
 
         await this.s3Client.putObject(
             this.settings.s3.defaultBucketName,
             `tnved.zip`,
             stream,
             contentLength,
-        );
+        )
 
-        return true;
+        return true
     }
 
     @task()
     @method
     private async processData(this: This) {
-        this.logger.info('Processing data');
+        this.logger.info('Processing data')
 
-        const task = this.getCurrentTask() as Task<ReturnType<typeof this.processData>>;
+        const task = this.getCurrentTask() as Task<ReturnType<typeof this.processData>>
 
-        const objectName = 'tnved.zip';
+        const objectName = 'tnved.zip'
 
-        await this.adapter.clear();
+        await this.adapter.clear()
 
-        task?.setProgress(`Fething object - '${objectName}'`);
+        task?.setProgress(`Fething object - '${objectName}'`)
 
-        const stream = await this.s3Client.getObject(
-            this.settings.s3.defaultBucketName,
-            objectName,
-        );
+        const stream = await this.s3Client.getObject(this.settings.s3.defaultBucketName, objectName)
 
-        const unzipStream = Unzip.Parse();
-        stream.pipe(unzipStream);
+        const unzipStream = Unzip.Parse()
+        stream.pipe(unzipStream)
 
         const files = [
             {
@@ -354,32 +350,32 @@ export default class TnvedService extends Service<typeof settings> {
                 level: 4,
                 structure: 'group|position|subposition|name|startDate|endDate'.split('|'),
             },
-        ];
+        ]
 
-        const currentDate = new Date();
+        const currentDate = new Date()
 
-        const fileItems = [];
+        const fileItems = []
         for await (const entry of unzipStream as AsyncIterable<Unzip.Entry>) {
-            const filename = path.basename(entry.path);
-            const fileInfo = files.find((v) => v.file.toLowerCase() === filename.toLowerCase());
+            const filename = path.basename(entry.path)
+            const fileInfo = files.find((v) => v.file.toLowerCase() === filename.toLowerCase())
             if (!fileInfo) {
-                entry.autodrain();
-                continue;
+                entry.autodrain()
+                continue
             }
 
             const parser = Papa.parse(Papa.NODE_STREAM_INPUT, {
                 header: false,
                 delimiter: '|',
                 fastMode: true,
-            });
+            })
 
             let header:
                 | {
-                      versionNumber: number;
-                      versionDate: Date;
+                      versionNumber: number
+                      versionDate: Date
                   }
-                | undefined = undefined;
-            const items: TNVEDRecord[] = [];
+                | undefined
+            const items: TNVEDRecord[] = []
 
             await pipeline(
                 entry,
@@ -392,8 +388,8 @@ export default class TnvedService extends Service<typeof settings> {
                             header = {
                                 versionNumber: Number(chunk[0]),
                                 versionDate: fromReverseShortDate(chunk[1]),
-                            };
-                            continue;
+                            }
+                            continue
                         }
                         const record: Record<string, any> = {
                             type: fileInfo.type,
@@ -402,88 +398,88 @@ export default class TnvedService extends Service<typeof settings> {
                             parentCode: '',
                             itemsCount: 0,
                             updateDate: header.versionDate,
-                        };
+                        }
                         for (const key in chunk as number[]) {
-                            const value = String(chunk[key]).trim();
-                            const itemKey = fileInfo.structure[key];
+                            const value = String(chunk[key]).trim()
+                            const itemKey = fileInfo.structure[key]
                             if (itemKey) {
                                 if (['startDate', 'endDate'].includes(itemKey)) {
                                     record[itemKey] =
-                                        value === '' ? undefined : fromShortDate(value);
+                                        value === '' ? undefined : fromShortDate(value)
                                 } else {
-                                    record[itemKey] = value;
+                                    record[itemKey] = value
                                 }
                             }
                         }
                         if (record.name === 'FIFA2018') {
-                            continue;
+                            continue
                         }
                         if (!!record.endDate && record.endDate < currentDate) {
-                            continue;
+                            continue
                         }
-                        items.push(this.adaptRecord(record));
+                        items.push(this.adaptRecord(record))
                     }
                 },
-            );
-            fileItems.push(items);
+            )
+            fileItems.push(items)
         }
 
         for (let i = fileItems.length - 2; i >= 0; i--) {
-            const items = fileItems[i];
+            const items = fileItems[i]
             for (const item of items) {
                 item.itemsCount = fileItems[item.level]
                     .filter(({ parentCode }) => parentCode === item.code)
-                    .reduce((a, b) => a + 1 + b.itemsCount, 0);
+                    .reduce((a, b) => a + 1 + b.itemsCount, 0)
             }
         }
 
         for (const items of fileItems) {
-            await this.insertInTransation(items);
+            await this.insertInTransation(items)
         }
 
-        await this.clearCache();
+        await this.clearCache()
 
-        await this.initFuzzySearch();
+        await this.initFuzzySearch()
 
-        this.logger.info('Data processed');
+        this.logger.info('Data processed')
     }
 
     @method
     private adaptRecord(this: This, record: Record<string, any>): TNVEDRecord {
         switch (record.level) {
             case 1: {
-                record.code = `Раздел${record.section}`;
-                record.order = Number(record.section) * 10_000_000;
-                break;
+                record.code = `Раздел${record.section}`
+                record.order = Number(record.section) * 10_000_000
+                break
             }
             case 2: {
-                record.parentCode = `Раздел${record.section}`;
-                record.code = record.group;
-                record.order = Number(`${record.group}00`) * 10_000_000;
-                break;
+                record.parentCode = `Раздел${record.section}`
+                record.code = record.group
+                record.order = Number(`${record.group}00`) * 10_000_000
+                break
             }
             case 3: {
-                record.parentCode = record.group;
-                record.code = `${record.group}${record.position}`;
-                record.order = Number(record.code) * 10_000_000;
-                record.name = `${toFirstUpperCase(record.name)}:`;
-                break;
+                record.parentCode = record.group
+                record.code = `${record.group}${record.position}`
+                record.order = Number(record.code) * 10_000_000
+                record.name = `${toFirstUpperCase(record.name)}:`
+                break
             }
             case 4: {
-                record.parentCode = `${record.group}${record.position}`;
-                const codeParts = [`${record.group}${record.position}`];
-                codeParts.push(record.subposition.slice(0, 2));
-                codeParts.push(record.subposition.slice(2, 5));
-                codeParts.push(record.subposition.slice(5, 6));
-                record.code = codeParts.join(' ');
-                record.order = Number(codeParts.join('')) * 10;
+                record.parentCode = `${record.group}${record.position}`
+                const codeParts = [`${record.group}${record.position}`]
+                codeParts.push(record.subposition.slice(0, 2))
+                codeParts.push(record.subposition.slice(2, 5))
+                codeParts.push(record.subposition.slice(5, 6))
+                record.code = codeParts.join(' ')
+                record.order = Number(codeParts.join('')) * 10
 
-                break;
+                break
             }
         }
-        record.normalizedCode = record.code.replaceAll(' ', '');
+        record.normalizedCode = record.code.replaceAll(' ', '')
 
-        return record as unknown as TNVEDRecord;
+        return record as unknown as TNVEDRecord
     }
 
     @method
@@ -494,15 +490,15 @@ export default class TnvedService extends Service<typeof settings> {
                 validate: false,
                 individualHooks: false,
                 ignoreDuplicates: false,
-            });
-        });
+            })
+        })
     }
 
     @method
     private async initFuzzySearch(this: This) {
-        const data = await this.actions.find();
+        const data = await this.actions.find()
         if (data.length === 0) {
-            return;
+            return
         }
 
         // Initialize Fuse
@@ -517,16 +513,16 @@ export default class TnvedService extends Service<typeof settings> {
             ignoreLocation: true,
             minMatchCharLength: 3,
             findAllMatches: false,
-        });
+        })
     }
 
     @method
     private async initS3(this: This) {
-        this.s3Client = new Minio.Client(this.settings.s3);
+        this.s3Client = new Minio.Client(this.settings.s3)
 
-        const bucketExists = await this.s3Client.bucketExists(this.settings.s3.defaultBucketName);
+        const bucketExists = await this.s3Client.bucketExists(this.settings.s3.defaultBucketName)
         if (!bucketExists) {
-            await this.s3Client.makeBucket(this.settings.s3.defaultBucketName);
+            await this.s3Client.makeBucket(this.settings.s3.defaultBucketName)
         }
     }
 
@@ -536,13 +532,13 @@ export default class TnvedService extends Service<typeof settings> {
 
     @lifecycle
     public async afterConnected(this: This) {
-        await this.adapter.db.query('PRAGMA journal_mode=WAL;');
-        await this.initFuzzySearch();
+        await this.adapter.db.query('PRAGMA journal_mode=WAL;')
+        await this.initFuzzySearch()
     }
 
     @started
     public async started(this: This) {
-        await this.initS3();
+        await this.initS3()
     }
 
     @stopped

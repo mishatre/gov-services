@@ -1,87 +1,87 @@
-import { action, method, service } from 'moldecor';
-import { Context, Service } from 'moleculer';
-import { parse } from 'node-html-parser';
+import { action, method, service } from 'moldecor'
+import { type Context, Service } from 'moleculer'
+import { parse } from 'node-html-parser'
 
-import { NotFoundError } from '../errors.js';
-import { defineSettings, documentKind } from '../utils/index.js';
-import { GetObjectListParams, GetObjectListResponse } from './elact-docs.service.js';
+import { NotFoundError } from '../utils/errors.js'
+import { defineSettings, documentKind } from '../utils/index.js'
+import type { GetObjectListParams, GetObjectListResponse } from './elact-docs.service.js'
 
 interface ExtractPrintFormsProps {
-    url: string;
+    url: string
 }
 
 type ExtractPrintFormsReturnType = Array<{
-    name: string;
-    documentKind: string;
-    isAppendix: boolean;
-    title: string;
-    content: string;
-}>;
+    name: string
+    documentKind: string
+    isAppendix: boolean
+    title: string
+    content: string
+}>
 
 export interface GarSearchParams {
-    query: string;
-    size?: number;
+    query: string
+    size?: number
 }
 
 export interface GarInfoParams {
-    uid: string;
+    uid: string
 }
 
 export interface GarSearchResponse {
-    items: GarInfoFetchResponse[];
+    items: GarInfoFetchResponse[]
 }
 
 export interface GarInfoResponse extends GarInfoFetchResponse {}
 
 interface GarSearchFetchResponse {
-    content: GarInfoFetchResponse[];
+    content: GarInfoFetchResponse[]
     pageable: {
-        pageNumber: number;
-        pageSize: number;
+        pageNumber: number
+        pageSize: number
         sort: {
-            sorted: boolean;
-            unsorted: boolean;
-            empty: boolean;
-        };
-        offset: number;
-        unpaged: boolean;
-        paged: boolean;
-    };
-    last: boolean;
-    totalPages: number;
-    totalElements: number;
-    first: boolean;
+            sorted: boolean
+            unsorted: boolean
+            empty: boolean
+        }
+        offset: number
+        unpaged: boolean
+        paged: boolean
+    }
+    last: boolean
+    totalPages: number
+    totalElements: number
+    first: boolean
     sort: {
-        sorted: boolean;
-        unsorted: boolean;
-        empty: boolean;
-    };
-    size: number;
-    number: number;
-    numberOfElements: number;
-    empty: boolean;
+        sorted: boolean
+        unsorted: boolean
+        empty: boolean
+    }
+    size: number
+    number: number
+    numberOfElements: number
+    empty: boolean
 }
 interface GarInfoFetchResponse {
-    id: string;
-    objectid: number;
-    objectguid: string;
+    id: string
+    objectid: number
+    objectguid: string
     municipalHierarchyAddressObjects: {
-        objectid: number;
-        objectguid: string;
-        name: string;
-        level: number;
-    }[];
-    level: number;
-    municipalHierarchyAddress: string;
-    address: string;
+        objectid: number
+        objectguid: string
+        name: string
+        level: number
+    }[]
+    level: number
+    municipalHierarchyAddress: string
+    address: string
     params: {
-        OktmoBudget: string;
-        OKTMO: string;
-        ReestrNum: string;
-        OKATO: string;
-        CadastrNum: string;
-        PostIndex: string;
-    };
+        OktmoBudget: string
+        OKTMO: string
+        ReestrNum: string
+        OKATO: string
+        CadastrNum: string
+        PostIndex: string
+    }
 }
 
 const DOCUMENT_MAP = {
@@ -91,9 +91,9 @@ const DOCUMENT_MAP = {
     'Подтверждение даты отправки документа': 'DP_PDPOL',
     'Уведомление об уточнении электронного документа': 'DP_UVUTOCH',
     'Мотивированный отказ': 'PRIL_ON_NSCHFDOPPOK',
-} as Readonly<{ [key: string]: string }>;
+} as Readonly<{ [key: string]: string }>
 
-const settings = defineSettings({});
+const settings = defineSettings({})
 
 @service({
     name: 'elact-utils',
@@ -119,25 +119,25 @@ export default class ElactDocsService extends Service<typeof settings> {
         },
     })
     public async garSearch(ctx: Context<GarSearchParams>): Promise<GarSearchResponse> {
-        const url = new URL('/gar', 'https://zakupki.gov.ru');
-        url.searchParams.set('size', String(ctx.params.size || 20));
-        url.searchParams.set('query', ctx.params.query);
+        const url = new URL('/gar', 'https://zakupki.gov.ru')
+        url.searchParams.set('size', String(ctx.params.size || 20))
+        url.searchParams.set('query', ctx.params.query)
 
-        let response: GarSearchFetchResponse;
+        let response: GarSearchFetchResponse
         try {
-            const res = await fetch(url);
-            response = await res.json();
+            const res = await fetch(url)
+            response = await res.json()
         } catch (error) {
-            throw error;
+            throw error
         }
 
         if (response.empty) {
-            throw new NotFoundError();
+            throw new NotFoundError()
         }
 
         return {
             items: response.content,
-        };
+        }
     }
 
     @action({
@@ -147,17 +147,17 @@ export default class ElactDocsService extends Service<typeof settings> {
         },
     })
     public async garInfo(ctx: Context<GarInfoParams>): Promise<GarInfoResponse> {
-        const url = new URL(`/gar/${ctx.params.uid}`, 'https://zakupki.gov.ru');
+        const url = new URL(`/gar/${ctx.params.uid}`, 'https://zakupki.gov.ru')
 
-        let response: GarInfoFetchResponse;
+        let response: GarInfoFetchResponse
         try {
-            const res = await fetch(url);
-            response = await res.json();
+            const res = await fetch(url)
+            response = await res.json()
         } catch (error) {
-            throw error;
+            throw error
         }
 
-        return response;
+        return response
     }
 
     @action({
@@ -179,20 +179,20 @@ export default class ElactDocsService extends Service<typeof settings> {
         const foundObjects = await ctx.call<GetObjectListResponse, GetObjectListParams>(
             'elact-docs.getObjectList',
             ctx.params,
-        );
+        )
 
         if (foundObjects.items.length === 0) {
-            throw new NotFoundError();
+            throw new NotFoundError()
         }
 
-        const item = foundObjects.items[0];
+        const item = foundObjects.items[0]
 
         return {
             objectId: item.objectId,
             documentKind: item.documentKind,
             versionNumber: item.versionNumber,
             status: item.status,
-        };
+        }
     }
 
     @action({
@@ -202,9 +202,9 @@ export default class ElactDocsService extends Service<typeof settings> {
         },
     })
     public async downloadFile(ctx: Context<{ url: string }>) {
-        const data = await fetch(ctx.params.url);
+        const data = await fetch(ctx.params.url)
 
-        return Buffer.from(await data.text()).toString('base64');
+        return Buffer.from(await data.text()).toString('base64')
     }
 
     @action({
@@ -221,7 +221,7 @@ export default class ElactDocsService extends Service<typeof settings> {
         },
     })
     public async downloadFiles(ctx: Context<string[]>) {
-        const urls = Array.from(new Set(ctx.params));
+        const urls = Array.from(new Set(ctx.params))
 
         const result = await Promise.all(
             urls.map((url) =>
@@ -229,9 +229,9 @@ export default class ElactDocsService extends Service<typeof settings> {
                     .downloadFile({ url }, { parentCtx: ctx })
                     .then((result) => [url, result]),
             ),
-        );
+        )
 
-        return Object.fromEntries(result);
+        return Object.fromEntries(result)
     }
 
     @action({
@@ -245,20 +245,20 @@ export default class ElactDocsService extends Service<typeof settings> {
         ctx: Context<ExtractPrintFormsProps>,
     ): Promise<ExtractPrintFormsReturnType> {
         try {
-            const res = await fetch(ctx.params.url);
+            const res = await fetch(ctx.params.url)
 
             if (!res.ok) {
-                return [];
+                return []
             }
 
-            const content = await res.text();
+            const content = await res.text()
 
-            return await this.extractHTMLFilesFromHTMLPage(content);
+            return await this.extractHTMLFilesFromHTMLPage(content)
         } catch (error) {
-            console.log(error);
+            console.log(error)
         }
 
-        return [];
+        return []
     }
 
     @action({
@@ -278,7 +278,7 @@ export default class ElactDocsService extends Service<typeof settings> {
     public async bulkExtractPrintForms(
         ctx: Context<ExtractPrintFormsProps[]>,
     ): Promise<{ url: string; items: ExtractPrintFormsReturnType }> {
-        const urls = Array.from(new Set(ctx.params.map(({ url }) => url)));
+        const urls = Array.from(new Set(ctx.params.map(({ url }) => url)))
 
         const result = await Promise.all(
             urls.map((url) =>
@@ -292,9 +292,9 @@ export default class ElactDocsService extends Service<typeof settings> {
                     )
                     .then((result) => [url, result]),
             ),
-        );
+        )
 
-        return Object.fromEntries(result);
+        return Object.fromEntries(result)
     }
 
     /*
@@ -305,26 +305,26 @@ export default class ElactDocsService extends Service<typeof settings> {
     private async extractHTMLFilesFromHTMLPage(
         htmlString: string,
     ): Promise<ExtractPrintFormsReturnType> {
-        const root = parse(htmlString);
+        const root = parse(htmlString)
         if (!root) {
-            return [];
+            return []
         }
 
-        const elements = root.getElementsByTagName('button') || [];
+        const elements = root.getElementsByTagName('button') || []
 
         const tasks = elements.map(async (element) => {
-            const url = this.extractURLFromString(element.attrs.onclick);
+            const url = this.extractURLFromString(element.attrs.onclick)
 
             if (!url || !(element.id in DOCUMENT_MAP)) {
-                return null;
+                return null
             }
 
-            const documentKind = DOCUMENT_MAP[element.id];
-            const isAppendix = documentKind.startsWith('PRIL_');
+            const documentKind = DOCUMENT_MAP[element.id]
+            const isAppendix = documentKind.startsWith('PRIL_')
 
-            const content = await this.fetchHtmlAsBase64(url);
+            const content = await this.fetchHtmlAsBase64(url)
             if (!content) {
-                return null;
+                return null
             }
 
             return {
@@ -333,47 +333,47 @@ export default class ElactDocsService extends Service<typeof settings> {
                 isAppendix,
                 title: element.innerText,
                 content,
-            };
-        });
+            }
+        })
 
-        return (await Promise.all(tasks)).filter(Boolean) as ExtractPrintFormsReturnType; // Remove `null` values
+        return (await Promise.all(tasks)).filter(Boolean) as ExtractPrintFormsReturnType // Remove `null` values
     }
 
     @method
     private async fetchHtmlAsBase64(url: string) {
         try {
-            const res = await fetch(url);
+            const res = await fetch(url)
 
             if (!res.ok) {
-                return undefined;
+                return undefined
             }
 
-            const content = await res.text();
+            const content = await res.text()
 
             if (this.isJSON(content)) {
-                return undefined;
+                return undefined
             }
 
-            return Buffer.from(content).toString('base64');
+            return Buffer.from(content).toString('base64')
         } catch (error) {
-            return undefined;
+            return undefined
         }
     }
 
     @method
     private isJSON(string: string) {
         try {
-            JSON.parse(string);
-            return true;
+            JSON.parse(string)
+            return true
         } catch (error) {
-            return false;
+            return false
         }
     }
 
     @method
     private extractURLFromString(string: string) {
         const pattern =
-            /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
-        return pattern.exec(string)?.[0];
+            /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/
+        return pattern.exec(string)?.[0]
     }
 }

@@ -1,14 +1,14 @@
-import _ from 'lodash';
-import * as Minio from 'minio';
-import { action, method, service, started } from 'moldecor';
-import { Context, Errors, Service } from 'moleculer';
-import path from 'node:path/posix';
-import { Readable } from 'node:stream';
-import { Client as SoapClient, createClientAsync } from 'soap';
+import path from 'node:path/posix'
+import { Readable } from 'node:stream'
+import _ from 'lodash'
+import * as Minio from 'minio'
+import { action, method, service, started } from 'moldecor'
+import { type Context, Errors, Service } from 'moleculer'
+import { createClientAsync, type Client as SoapClient } from 'soap'
 
-import TokenServiceMixin from '../mixins/token-service-mixin.js';
-import { ExcludeErrorInfo } from '../types/basic.js';
-import {
+import TokenServiceMixin from '../mixins/token-service-mixin.js'
+import type { ExcludeErrorInfo } from '../types/basic.js'
+import type {
     LkpGetContractsListRequest,
     LkpGetContractsListResponse,
     LkpGetObjectInfoRequest,
@@ -17,43 +17,44 @@ import {
     LkpGetObjectListResponse,
     LkpGetParticipantInfoRequest,
     LkpGetParticipantInfoResponse,
-} from '../types/elact-docs.js';
+} from '../types/elact-docs.js'
 import {
     defineSettings,
     documentKind,
     getHighestVersionFolder,
     getRequestShim,
     mapToObject,
-} from '../utils/index.js';
-import { getS3EnvConfig } from '../utils/s3.js';
-import { executeSoapRequest } from '../utils/soap.js';
+    useCustomDispatcher,
+} from '../utils/index.js'
+import { getS3EnvConfig } from '../utils/s3.js'
+import { executeSoapRequest } from '../utils/soap.js'
 
 export type BulkGetContractsListRequest = {
-    regNum: string;
-    items: LkpGetContractsListRequest[];
-};
+    regNum: string
+    items: LkpGetContractsListRequest[]
+}
 export type BulkGetObjectInfoRequest = {
-    regNum: string;
-    items: LkpGetObjectListRequest[];
-};
+    regNum: string
+    items: LkpGetObjectListRequest[]
+}
 
 // Actions
 
-export type GetContractsListParams = LkpGetContractsListRequest & { cacheFiles: boolean };
-export type GetParticipantInfoParams = LkpGetParticipantInfoRequest;
-export type GetObjectListParams = LkpGetObjectListRequest;
-export type GetObjectInfoParams = LkpGetObjectInfoRequest;
+export type GetContractsListParams = LkpGetContractsListRequest & { cacheFiles: boolean }
+export type GetParticipantInfoParams = LkpGetParticipantInfoRequest
+export type GetObjectListParams = LkpGetObjectListRequest
+export type GetObjectInfoParams = LkpGetObjectInfoRequest
 
 export type GetContractsListResponse = {
-    items: ExcludeErrorInfo<LkpGetContractsListResponse>['contractList']['contractInfo'];
-};
-export type GetParticipantInfoResponse = ExcludeErrorInfo<LkpGetParticipantInfoResponse>;
+    items: ExcludeErrorInfo<LkpGetContractsListResponse>['contractList']['contractInfo']
+}
+export type GetParticipantInfoResponse = ExcludeErrorInfo<LkpGetParticipantInfoResponse>
 export type GetObjectListResponse = {
-    items: ExcludeErrorInfo<LkpGetObjectListResponse>['objectList']['objectInfo'];
-};
-export type GetObjectInfoResponse = ExcludeErrorInfo<LkpGetObjectInfoResponse>;
+    items: ExcludeErrorInfo<LkpGetObjectListResponse>['objectList']['objectInfo']
+}
+export type GetObjectInfoResponse = ExcludeErrorInfo<LkpGetObjectInfoResponse>
 
-type This = ElactDocsService & typeof TokenServiceMixin;
+type This = ElactDocsService & typeof TokenServiceMixin
 
 const settings = defineSettings({
     $secureSettings: ['s3.secretKey'],
@@ -68,7 +69,9 @@ const settings = defineSettings({
     s3: getS3EnvConfig('S3', 'ELACT_DOCS', {
         defaultBucketName: 'elact-docs',
     }),
-});
+})
+
+useCustomDispatcher({ connectTimeout: 60000 })
 
 @service({
     name: 'elact-docs',
@@ -90,8 +93,8 @@ const settings = defineSettings({
     },
 })
 export default class ElactDocsService extends Service<typeof settings> {
-    declare private soapClient: SoapClient;
-    declare private s3Client: Minio.Client;
+    private declare soapClient: SoapClient
+    private declare s3Client: Minio.Client
 
     /*
      *  Actions
@@ -126,7 +129,7 @@ export default class ElactDocsService extends Service<typeof settings> {
                     },
                 ),
             ),
-        );
+        )
     }
 
     @action({
@@ -161,7 +164,7 @@ export default class ElactDocsService extends Service<typeof settings> {
                     },
                 ),
             ),
-        );
+        )
     }
 
     @action({
@@ -209,37 +212,37 @@ export default class ElactDocsService extends Service<typeof settings> {
         const [error, content] = await this.executeRequest<LkpGetContractsListResponse>(
             'lkpGetContractsList',
             ctx,
-        );
+        )
         if (error) {
-            throw error;
+            throw error
         }
 
-        const items = content.contractList?.contractInfo || [];
+        const items = content.contractList?.contractInfo || []
         if (ctx.params.cacheFiles) {
             for (const item of items) {
                 try {
-                    const res = await fetch(item.url);
+                    const res = await fetch(item.url)
                     if (!res.ok || !res.body) {
-                        throw new Error('Incorrect response');
+                        throw new Error('Incorrect response')
                     }
                     await this.s3Client.putObject(
                         this.settings.s3.defaultBucketName,
                         item.regNumber,
                         Readable.from(res.body),
-                    );
+                    )
                     item.url = await this.s3Client.presignedGetObject(
                         this.settings.s3.defaultBucketName,
                         item.regNumber,
-                    );
+                    )
                 } catch (error) {
-                    this.logger.error(`Couldn't download file - ${item.url}`, error);
+                    this.logger.error(`Couldn't download file - ${item.url}`, error)
                 }
             }
         }
 
         return {
             items,
-        };
+        }
     }
 
     @action({
@@ -260,12 +263,12 @@ export default class ElactDocsService extends Service<typeof settings> {
         const [error, content] = await this.executeRequest<
             LkpGetParticipantInfoResponse,
             LkpGetParticipantInfoRequest
-        >('lkpGetParticipantInfo', ctx);
+        >('lkpGetParticipantInfo', ctx)
         if (error) {
-            throw error;
+            throw error
         }
 
-        return content;
+        return content
     }
 
     @action({
@@ -332,13 +335,13 @@ export default class ElactDocsService extends Service<typeof settings> {
         const [error, content] = await this.executeRequest<LkpGetObjectListResponse>(
             'lkpGetObjectList',
             ctx,
-        );
+        )
         if (error) {
-            throw error;
+            throw error
         }
         return {
             items: content.objectList?.objectInfo ?? [],
-        };
+        }
     }
 
     @action({
@@ -358,12 +361,12 @@ export default class ElactDocsService extends Service<typeof settings> {
         const [error, content, rawContent] = await this.executeRequest<LkpGetObjectInfoResponse>(
             'lkpGetObjectInfo',
             ctx,
-        );
+        )
         if (error) {
-            throw error;
+            throw error
         }
 
-        return content;
+        return content
     }
 
     /*
@@ -373,46 +376,46 @@ export default class ElactDocsService extends Service<typeof settings> {
     @method
     private async executeRequest<R, P extends {} = {}>(
         this: This,
-        method: string,
+        requestMethod: string,
         ctx: Context<P>,
     ) {
         let [error, content, rawContent] = await executeSoapRequest<R, P>(
             this.soapClient,
-            method,
-            this.enforceParametersOrder(ctx.params, method),
+            requestMethod,
+            this.enforceParametersOrder(ctx.params, requestMethod),
             {},
             {
                 'Content-Type': 'text/xml;charset=windows-1251',
                 usertoken: ctx.locals.usertoken,
             },
-        );
+        )
         if (!error) {
             if (!content || 'Body' in (content as Object)) {
-                error = new Errors.MoleculerError('Empty response', 500, 'EMPTY_RESPONSE');
+                error = new Errors.MoleculerError('Empty response', 500, 'EMPTY_RESPONSE')
             } else if ('errorInfo' in (content as Object)) {
-                const { message, code } = (content as any).errorInfo;
-                error = new Errors.MoleculerClientError(message, code, 'ELACT_ERROR');
+                const { message, code } = (content as any).errorInfo
+                error = new Errors.MoleculerClientError(message, code, 'ELACT_ERROR')
             }
         }
-        return [error, content as ExcludeErrorInfo<NonNullable<R>>, rawContent as string] as const;
+        return [error, content as ExcludeErrorInfo<NonNullable<R>>, rawContent as string] as const
     }
 
     @method
     protected convertDateParams(this: This, ctx: Context<any>) {
         if ('fromDate' in ctx.params && typeof ctx.params.fromDate === 'object') {
-            ctx.params.fromDate = ctx.params.fromDate.toISOString();
+            ctx.params.fromDate = ctx.params.fromDate.toISOString()
         }
         if ('toDate' in ctx.params && typeof ctx.params.toDate === 'object') {
-            ctx.params.toDate = ctx.params.toDate.toISOString();
+            ctx.params.toDate = ctx.params.toDate.toISOString()
         }
     }
 
     @method
-    private enforceParametersOrder(this: This, params: object, method: string) {
-        let order: string[] = [];
-        const orderedParams = new Map<string, any>();
+    private enforceParametersOrder(this: This, params: object, requestMethod: string) {
+        const order: string[] = []
+        const orderedParams = new Map<string, any>()
 
-        switch (method) {
+        switch (requestMethod) {
             case 'lkpGetContractsList': {
                 order.push(
                     'regNum',
@@ -421,12 +424,12 @@ export default class ElactDocsService extends Service<typeof settings> {
                     'toDate',
                     'customerInfo.INN',
                     'customerInfo.KPP',
-                );
-                break;
+                )
+                break
             }
             case 'lkpGetParticipantInfo': {
-                order.push('regNum');
-                break;
+                order.push('regNum')
+                break
             }
             case 'lkpGetObjectList': {
                 order.push(
@@ -439,57 +442,57 @@ export default class ElactDocsService extends Service<typeof settings> {
                     'toDate',
                     'customerInfo.INN',
                     'customerInfo.KPP',
-                );
-                break;
+                )
+                break
             }
             case 'lkpGetObjectInfo': {
-                order.push('regNum', 'documentUid', 'documentKind');
-                break;
+                order.push('regNum', 'documentUid', 'documentKind')
+                break
             }
         }
 
         for (const property of order) {
-            const parts = property.split('.');
+            const parts = property.split('.')
             if (parts.length === 1) {
                 if (_.has(params, property)) {
-                    orderedParams.set(property, _.get(params, property));
+                    orderedParams.set(property, _.get(params, property))
                 }
             } else {
-                let current = null;
-                let pathParts = [];
+                let current = null
+                const pathParts = []
                 for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i];
-                    pathParts.push(part);
+                    const part = parts[i]
+                    pathParts.push(part)
                     if (i === parts.length - 1) {
                         if (_.has(params, pathParts.join('.'))) {
-                            current.set(part, _.get(params, pathParts.join('.')));
+                            current.set(part, _.get(params, pathParts.join('.')))
                         }
                     } else {
                         if (!_.has(params, part)) {
-                            break;
+                            break
                         }
                         if (!orderedParams.has(part)) {
-                            orderedParams.set(part, new Map());
+                            orderedParams.set(part, new Map())
                         }
-                        current = orderedParams.get(part);
+                        current = orderedParams.get(part)
                     }
                 }
             }
         }
 
-        return mapToObject(orderedParams);
+        return mapToObject(orderedParams)
     }
 
     @method
     private async initS3(this: This) {
         if (!this.settings.s3) {
-            return;
+            return
         }
-        this.s3Client = new Minio.Client(this.settings.s3);
+        this.s3Client = new Minio.Client(this.settings.s3)
 
-        const bucketExists = await this.s3Client.bucketExists(this.settings.s3.defaultBucketName);
+        const bucketExists = await this.s3Client.bucketExists(this.settings.s3.defaultBucketName)
         if (!bucketExists) {
-            await this.s3Client.makeBucket(this.settings.s3.defaultBucketName);
+            await this.s3Client.makeBucket(this.settings.s3.defaultBucketName)
         }
     }
 
@@ -499,19 +502,19 @@ export default class ElactDocsService extends Service<typeof settings> {
 
     @started
     public async started(this: This) {
-        const highestVersionFolder = await getHighestVersionFolder(this.settings.elact.schemas);
+        const highestVersionFolder = await getHighestVersionFolder(this.settings.elact.schemas)
 
         const pathToWSDL = path.join(
             this.settings.elact.schemas,
             highestVersionFolder,
             this.settings.elact.wsdl,
-        );
+        )
 
         this.soapClient = await createClientAsync(pathToWSDL, {
             request: getRequestShim(),
-        });
-        this.soapClient.setEndpoint(this.settings.elact.endpoint);
+        })
+        this.soapClient.setEndpoint(this.settings.elact.endpoint)
 
-        await this.initS3();
+        await this.initS3()
     }
 }

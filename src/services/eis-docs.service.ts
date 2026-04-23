@@ -1,71 +1,71 @@
-import { randomUUID } from 'crypto';
-import { action, method, service, started } from 'moldecor';
-import { Context, Errors, Service } from 'moleculer';
-import path from 'node:path/posix';
-import { Client as SoapClient, createClientAsync } from 'soap';
+import { randomUUID } from 'node:crypto'
+import path from 'node:path/posix'
+import { action, method, service, started } from 'moldecor'
+import { type Context, Errors, Service } from 'moleculer'
+import { createClientAsync, type Client as SoapClient } from 'soap'
 
-import { ExcludeErrorInfo, ExcludeNoData } from '../types/basic.js';
+import type { ExcludeErrorInfo, ExcludeNoData } from '../types/basic.js'
 import {
-    EISDocsResponse,
-    EISGetDocSignaturesByUrlRequest,
-    EISGetDocSignaturesByUrlResponse,
-    EISGetDocsByOrgRegionRequest,
-    EISGetDocsByOrgRegionResponse,
-    EISGetDocsByReestrNumberRequest,
-    EISGetDocsByReestrNumberResponse,
-    EISGetNsiRequest,
-    EISGetNsiResponse,
+    type EISDocsResponse,
+    type EISGetDocSignaturesByUrlRequest,
+    type EISGetDocSignaturesByUrlResponse,
+    type EISGetDocsByOrgRegionRequest,
+    type EISGetDocsByOrgRegionResponse,
+    type EISGetDocsByReestrNumberRequest,
+    type EISGetDocsByReestrNumberResponse,
+    type EISGetNsiRequest,
+    type EISGetNsiResponse,
     FzTypes,
-    NSIKinds,
-    SubsystemType,
-} from '../types/eis-docs.js';
-import { defineSettings, getHighestVersionFolder, getRequestShim } from '../utils/index.js';
-import { executeSoapRequest } from '../utils/soap.js';
+    type NSIKinds,
+    type SubsystemType,
+} from '../types/eis-docs.js'
+import { defineSettings, getHighestVersionFolder, getRequestShim } from '../utils/index.js'
+import { executeSoapRequest } from '../utils/soap.js'
 
 // Actions
 
 export type GetDocsByReestrNumberParams = {
-    subsystemType: SubsystemType;
-    reestrNumber: string;
-};
+    subsystemType: SubsystemType
+    reestrNumber: string
+}
 
 export type GetDocsByOrgRegionParams = {
-    fzType: FzTypes;
-    orgRegion: string;
-    subsystemType: SubsystemType;
-    documentType: string;
+    fzType: FzTypes
+    orgRegion: string
+    subsystemType: SubsystemType
+    documentType: string
     periodInfo: {
-        exactDate: string;
-    };
-    reestrNumber?: string;
-};
+        exactDate: string
+    }
+    reestrNumber?: string
+}
 
 export type GetNsiRequestParams = {
-    fzType: FzTypes;
-    nsiCode: string;
-    nsiKind: NSIKinds;
-};
+    fzType: FzTypes
+    nsiCode: string
+    nsiKind: NSIKinds
+}
 
 export type GetDocSignaturesByUrlParams = {
-    archiveUrl: string[];
-};
+    archiveUrl: string[]
+}
 
 export type GetDocsByReestrNumberResponse = {
     items: ExcludeErrorInfo<
         ExcludeNoData<EISGetDocsByReestrNumberResponse['dataInfo']>
-    >['archiveUrl'];
-};
+    >['archiveUrl']
+}
 export type GetDocsByOrgRegionResponse = {
-    items: ExcludeErrorInfo<ExcludeNoData<EISGetDocsByOrgRegionResponse['dataInfo']>>['archiveUrl'];
-};
+    items: ExcludeErrorInfo<ExcludeNoData<EISGetDocsByOrgRegionResponse['dataInfo']>>['archiveUrl']
+}
 export type GetNsiResponse = {
-    items: { url: string; name: string }[];
-};
+    items: { url: string; name: string }[]
+}
 export type GetDocSignaturesByUrlResponse = {
     items: ExcludeErrorInfo<
         ExcludeNoData<EISGetDocSignaturesByUrlResponse['dataInfo']>
-    >['docSignaturesInfo'];
-};
+    >['docSignaturesInfo']
+}
 
 const subsystemTypes = [
     'BTK',
@@ -105,7 +105,7 @@ const subsystemTypes = [
     'POM223',
     'RBG223',
     'ZC',
-] as const;
+] as const
 
 // useProxy();
 
@@ -118,7 +118,7 @@ const settings = defineSettings({
             process.env.EIS_DOCS ??
             'https://eruz.zakupki.gov.ru/eis-integration/services/getDocsLE',
     },
-});
+})
 
 @service({
     name: 'eis-docs',
@@ -131,7 +131,7 @@ const settings = defineSettings({
     settings,
 })
 export default class EisDocsService extends Service<typeof settings> {
-    declare private soapClient: SoapClient;
+    private declare soapClient: SoapClient
 
     /*
      *  Actions
@@ -148,31 +148,31 @@ export default class EisDocsService extends Service<typeof settings> {
     public async getDocsByReestrNumber(
         ctx: Context<GetDocsByReestrNumberParams>,
     ): Promise<GetDocsByReestrNumberResponse> {
-        const { subsystemType, reestrNumber } = ctx.params;
+        const { subsystemType, reestrNumber } = ctx.params
         const params = {
             index: this.createIndexData(),
             selectionParams: {
                 subsystemType,
                 reestrNumber,
             },
-        };
+        }
 
         const [error, content] = await this.executeRequest<
             EISGetDocsByReestrNumberResponse,
             EISGetDocsByReestrNumberRequest
-        >('getDocsByReestrNumber', params);
+        >('getDocsByReestrNumber', params)
         if (error) {
-            throw error;
+            throw error
         } else if (!content) {
             throw new Errors.MoleculerClientError(
                 'Документы отсутствуют',
                 404,
                 'DOCUMENTS_NOT_FOUND',
-            );
+            )
         }
         return {
             items: content.archiveUrl,
-        };
+        }
     }
 
     @action({
@@ -202,7 +202,7 @@ export default class EisDocsService extends Service<typeof settings> {
         ctx: Context<GetDocsByOrgRegionParams>,
     ): Promise<GetDocsByOrgRegionResponse> {
         const { fzType, orgRegion, subsystemType, documentType, periodInfo, reestrNumber } =
-            ctx.params;
+            ctx.params
         const params = {
             index: this.createIndexData(),
             selectionParams: {
@@ -212,24 +212,24 @@ export default class EisDocsService extends Service<typeof settings> {
                 periodInfo,
                 reestrNumber,
             },
-        };
+        }
 
         const [error, content] = await this.executeRequest<
             EISGetDocsByOrgRegionResponse,
             EISGetDocsByOrgRegionRequest
-        >('getDocsByOrgRegion', params);
+        >('getDocsByOrgRegion', params)
         if (error) {
-            throw error;
+            throw error
         } else if (!content) {
             throw new Errors.MoleculerClientError(
                 'Документы отсутствуют',
                 404,
                 'DOCUMENTS_NOT_FOUND',
-            );
+            )
         }
         return {
             items: content.archiveUrl,
-        };
+        }
     }
 
     @action({
@@ -242,22 +242,22 @@ export default class EisDocsService extends Service<typeof settings> {
     public async getDocSignaturesByUrl(
         ctx: Context<GetDocSignaturesByUrlParams>,
     ): Promise<GetDocSignaturesByUrlResponse> {
-        const { archiveUrl } = ctx.params;
+        const { archiveUrl } = ctx.params
         const params = {
             index: this.createIndexData(),
             archiveUrl,
-        };
+        }
 
         const [error, content] = await this.executeRequest<
             EISGetDocSignaturesByUrlResponse,
             EISGetDocSignaturesByUrlRequest
-        >('getDocSignaturesByUrl', params);
+        >('getDocSignaturesByUrl', params)
         if (error) {
-            throw error;
+            throw error
         }
         return {
             items: content.docSignaturesInfo,
-        };
+        }
     }
 
     @action({
@@ -282,34 +282,34 @@ export default class EisDocsService extends Service<typeof settings> {
         },
     })
     public async getNsi(ctx: Context<GetNsiRequestParams>): Promise<GetNsiResponse> {
-        const { fzType, nsiCode, nsiKind } = ctx.params;
+        const { fzType, nsiCode, nsiKind } = ctx.params
         const params = {
             index: this.createIndexData(),
             selectionParams: {
                 [`nsiCode${fzType === FzTypes.fz44 ? '44' : '223'}`]: nsiCode,
                 nsiKind,
             },
-        };
+        }
 
         const [error, content] = await this.executeRequest<EISGetNsiResponse, EISGetNsiRequest>(
             'getNsi',
             params,
-        );
+        )
         if (error) {
-            throw error;
+            throw error
         } else if (!content) {
             throw new Errors.MoleculerClientError(
                 'Справочники не найдены',
                 404,
                 'CATALOGS_NOT_FOUND',
-            );
+            )
         }
         return {
             items: content.nsiArchiveInfo.map(({ archiveUrl, archiveName }) => ({
                 url: this.rewriteURL(archiveUrl),
                 name: archiveName,
             })),
-        };
+        }
     }
 
     /*
@@ -318,52 +318,52 @@ export default class EisDocsService extends Service<typeof settings> {
 
     @method
     private async executeRequest<R extends EISDocsResponse<any>, P extends {} = {}>(
-        method: string,
+        requestMethod: string,
         params: P,
     ) {
-        let [error, content, rawContent] = await executeSoapRequest<EISDocsResponse<any>, P>(
+        let [error, content, rawContent] = await executeSoapRequest<R, P>(
             this.soapClient,
-            method,
+            requestMethod,
             params,
             {},
             {},
-        );
+        )
         if (!error) {
             if (!content || 'noData' in content.dataInfo) {
-                content = null;
+                content = null
             } else if ('errorInfo' in content.dataInfo) {
-                const { message, code } = (content as any).errorInfo;
-                error = new Errors.MoleculerClientError(message, code, 'EIS_ERROR');
+                const { message, code } = (content as any).dataInfo.errorInfo
+                error = new Errors.MoleculerClientError(message, code, 'EIS_ERROR')
             } else {
-                content = content.dataInfo;
+                content = content.dataInfo
             }
         }
         return [
             error,
             content as ExcludeNoData<ExcludeErrorInfo<NonNullable<R['dataInfo']>>>,
             rawContent as string,
-        ] as const;
+        ] as const
     }
 
     @method
     protected rewriteURL(url: string) {
-        const originalURL = new URL(url);
-        const endpointURL = new URL(this.settings.eis.endpoint);
+        const originalURL = new URL(url)
+        const endpointURL = new URL(this.settings.eis.endpoint)
 
-        originalURL.protocol = endpointURL.protocol;
-        originalURL.host = endpointURL.host;
+        originalURL.protocol = endpointURL.protocol
+        originalURL.host = endpointURL.host
 
-        return originalURL.toString();
+        return originalURL.toString()
     }
 
     @method
     protected createIndexData() {
-        const testMode = this.settings.testMode ?? false;
+        const testMode = this.settings.testMode ?? false
         return {
             id: randomUUID(),
             createDateTime: new Date().toISOString(),
             mode: testMode ? 'TEST' : 'PROD',
-        } as const;
+        } as const
     }
 
     /*
@@ -372,17 +372,17 @@ export default class EisDocsService extends Service<typeof settings> {
 
     @started
     public async started() {
-        const highestVersionFolder = await getHighestVersionFolder(this.settings.eis.schemas);
+        const highestVersionFolder = await getHighestVersionFolder(this.settings.eis.schemas)
 
         const pathToWSDL = path.join(
             this.settings.eis.schemas,
             highestVersionFolder,
             this.settings.eis.wsdl,
-        );
+        )
 
         this.soapClient = await createClientAsync(pathToWSDL, {
             request: getRequestShim(),
-        });
-        this.soapClient.setEndpoint(this.settings.eis.endpoint);
+        })
+        this.soapClient.setEndpoint(this.settings.eis.endpoint)
     }
 }

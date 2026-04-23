@@ -1,13 +1,13 @@
-import { event, method, service, started } from 'moldecor';
-import { Context, Service } from 'moleculer';
+import { event, method, service, started } from 'moldecor'
+import { type Context, Service } from 'moleculer'
 
-import { TokenNotFoundError, TokenNotProvidedError } from '../errors.js';
-import { GetTokenParams, GetTokenResponse } from '../services/elact-eruz.service.js';
-import { defineSettings } from '../utils/index.js';
+import type { GetTokenParams, GetTokenResponse } from '../services/elact-eruz.service.js'
+import { TokenNotFoundError, TokenNotProvidedError } from '../utils/errors.js'
+import { defineSettings } from '../utils/index.js'
 
 const settings = defineSettings({
     tokenService: '',
-});
+})
 
 @service({
     name: 'token-service-mixin',
@@ -21,46 +21,46 @@ const settings = defineSettings({
     settings,
 })
 export default class TokenServiceMixin extends Service<typeof settings> {
-    private useTokenService = false;
+    private useTokenService = false
 
     @method
     protected async resolveUserToken(ctx: Context<{ regNum: string }, { token?: string }>) {
         if (ctx.meta.token) {
-            ctx.locals.usertoken = ctx.meta.token;
-            delete ctx.meta.token;
+            ctx.locals.usertoken = ctx.meta.token
+            delete ctx.meta.token
         } else if (this.useTokenService) {
             const usertoken = await ctx.call<GetTokenResponse, GetTokenParams>(
                 `${this.settings.tokenService}.getToken`,
                 {
                     regNum: ctx.params.regNum,
                 },
-            );
+            )
             if (!usertoken) {
-                throw new TokenNotFoundError();
+                throw new TokenNotFoundError()
             }
-            ctx.locals.usertoken = usertoken;
+            ctx.locals.usertoken = usertoken
         } else {
-            throw new TokenNotProvidedError();
+            throw new TokenNotProvidedError()
         }
     }
 
     @method
     private setIsTokenServiceAvailable() {
-        const currentValue = this.useTokenService;
+        const currentValue = this.useTokenService
 
-        const tokenService = this.settings.tokenService.toLowerCase();
+        const tokenService = this.settings.tokenService.toLowerCase()
         if (!tokenService) {
-            this.useTokenService = false;
+            this.useTokenService = false
         } else {
             const list = this.broker.registry.getServiceList({
                 skipInternal: true,
                 onlyAvailable: true,
-            });
+            })
             this.useTokenService =
-                list.find((v) => v.name.toLowerCase() === tokenService) !== undefined;
+                list.find((v) => v.name.toLowerCase() === tokenService) !== undefined
         }
         if (currentValue !== this.useTokenService) {
-            this.logger.debug(`useTokenService: ${currentValue} -> ${this.useTokenService}`);
+            this.logger.debug(`useTokenService: ${currentValue} -> ${this.useTokenService}`)
         }
     }
 
@@ -73,7 +73,7 @@ export default class TokenServiceMixin extends Service<typeof settings> {
         context: true,
     })
     protected onServiceChanged(_: Context<any>) {
-        this.setIsTokenServiceAvailable();
+        this.setIsTokenServiceAvailable()
     }
 
     @event({
@@ -82,7 +82,7 @@ export default class TokenServiceMixin extends Service<typeof settings> {
     })
     protected onNodeDisconnected(ctx: Context<{ unexpected: boolean }>) {
         if (ctx.params.unexpected) {
-            this.setIsTokenServiceAvailable();
+            this.setIsTokenServiceAvailable()
         }
     }
 
@@ -92,6 +92,6 @@ export default class TokenServiceMixin extends Service<typeof settings> {
 
     @started
     public async started() {
-        this.setIsTokenServiceAvailable();
+        this.setIsTokenServiceAvailable()
     }
 }
