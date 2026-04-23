@@ -170,6 +170,7 @@ dist
 eruz
 certs
 schemas
+albums
 
 *.csv
 *.txt
