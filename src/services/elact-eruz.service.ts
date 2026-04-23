@@ -1,65 +1,49 @@
-import { action, lifecycle, method, service } from 'moldecor';
-import { Context, Errors, Service } from 'moleculer';
-import DbService from 'moleculer-db';
-import SqlAdapter from 'moleculer-db-adapter-sequelize';
-import Sequelize from 'sequelize';
+import { action, lifecycle, method, service } from 'moldecor'
+import { type Context, Errors, Service } from 'moleculer'
+import DbService from 'moleculer-db'
+import SqlAdapter from 'moleculer-db-adapter-sequelize'
+import Sequelize from 'sequelize'
+import * as z from 'zod'
+import { NotFoundError, TokenNotFoundError } from '../utils/errors.js'
+import { defineSettings } from '../utils/index.js'
 
-import { NotFoundError, TokenNotFoundError } from '../errors.js';
-import { defineSettings } from '../utils/index.js';
+const zNumericString = z.string().regex(/^\d+$/, 'Must be a numeric string')
 
-export interface CreateRecordParams {
-    regNum: string;
-    inn: string;
-    token: string;
-    skipValidation: boolean;
-}
+const regNumParams = z.object({
+    regNum: zNumericString.length(8),
+})
 
-export interface RemoveRecordParams {
-    regNum: string;
-}
+const createRecordParams = z.object({
+    regNum: zNumericString.length(8),
+    inn: zNumericString.min(10).max(12),
+    token: z.uuid(),
+})
 
-export interface GetTokenParams {
-    regNum: string;
-}
-
-export interface GetINNParams {
-    regNum: string;
-}
-
-export interface CreateRecordParams {
-    regNum: string;
-    inn: string;
-    token: string;
-    skipValidation: boolean;
-}
-
-export interface CreateRecordParams {
-    regNum: string;
-    inn: string;
-    token: string;
-    skipValidation: boolean;
-}
+export type RemoveRecordParams = z.infer<typeof regNumParams>
+export type GetTokenParams = z.infer<typeof regNumParams>
+export type GetINNParams = z.infer<typeof regNumParams>
+export type CreateRecordParams = z.infer<typeof createRecordParams>
 
 export interface CreateRecordResponse {
-    regNum: string;
+    regNum: string
 }
 
 export interface RemoveRecordResponse {
-    regNum: string;
+    regNum: string
 }
-export type GetTokenResponse = string;
-export type GetINNResponse = string;
+export type GetTokenResponse = string
+export type GetINNResponse = string
 
 interface dbTable {
-    regNum: string;
-    inn: string;
-    token: string;
-    enabled: boolean;
+    regNum: string
+    inn: string
+    token: string
+    enabled: boolean
 }
 
-type This = ElactEruzService & DbService;
+type This = ElactEruzService & DbService
 
-const settings = defineSettings({});
+const settings = defineSettings({})
 
 @service({
     name: 'elact-eruz',
@@ -107,7 +91,7 @@ const settings = defineSettings({});
     },
 })
 export default class ElactEruzService extends Service<typeof settings> {
-    declare private adapter: SqlAdapter & { db: Sequelize.Sequelize };
+    private declare adapter: SqlAdapter & { db: Sequelize.Sequelize }
 
     /*
      *  Actions
@@ -115,25 +99,21 @@ export default class ElactEruzService extends Service<typeof settings> {
 
     @action({
         name: 'createRecord',
-        params: {
-            regNum: 'string|numeric|length:8',
-            inn: 'string|numeric|min:10|max:12',
-            token: 'uuid',
-        },
+        params: createRecordParams as any,
     })
     public async createRecord(
         this: This,
         ctx: Context<CreateRecordParams>,
     ): Promise<CreateRecordResponse> {
-        const { regNum, inn, token, skipValidation } = ctx.params;
+        const { regNum, inn, token } = ctx.params
 
-        const foundRecord = await this.getRecord(ctx, regNum);
-        if (!!foundRecord) {
+        const foundRecord = await this.getRecord(ctx, regNum)
+        if (foundRecord) {
             throw new Errors.MoleculerClientError(
                 `Record with regNum '${ctx.params.regNum}' already exists`,
                 409,
                 'ERR_ALREADY_EXISTS',
-            );
+            )
         }
 
         await this._create(ctx, {
@@ -141,58 +121,52 @@ export default class ElactEruzService extends Service<typeof settings> {
             inn,
             token,
             disabled: false,
-        });
+        })
 
         return {
             regNum,
-        };
+        }
     }
 
     @action({
         name: 'removeRecord',
-        params: {
-            regNum: 'string|numeric|length:8',
-        },
+        params: regNumParams as any,
     })
     public async removeRecord(
         this: This,
         ctx: Context<RemoveRecordParams>,
     ): Promise<RemoveRecordResponse> {
-        await this._remove(ctx, { id: ctx.params.regNum });
+        await this._remove(ctx, { id: ctx.params.regNum })
         return {
             regNum: ctx.params.regNum,
-        };
+        }
     }
 
     @action({
         name: 'getToken',
-        params: {
-            regNum: 'string|numeric|length:8',
-        },
+        params: regNumParams as any,
         cache: {
             enabled: true,
         },
     })
     public async getToken(this: This, ctx: Context<GetTokenParams>): Promise<GetTokenResponse> {
-        const foundRecord = await this.getRecord(ctx, ctx.params.regNum);
+        const foundRecord = await this.getRecord(ctx, ctx.params.regNum)
         if (!foundRecord) {
-            throw new TokenNotFoundError();
+            throw new TokenNotFoundError()
         }
-        return foundRecord.token;
+        return foundRecord.token
     }
 
     @action({
         name: 'getINN',
-        params: {
-            regNum: 'string|numeric|length:8',
-        },
+        params: regNumParams as any,
     })
     public async getINN(this: This, ctx: Context<GetINNParams>): Promise<GetINNResponse> {
-        const foundRecord = await this.getRecord(ctx, ctx.params.regNum);
+        const foundRecord = await this.getRecord(ctx, ctx.params.regNum)
         if (!foundRecord) {
-            throw new NotFoundError();
+            throw new NotFoundError()
         }
-        return foundRecord.inn;
+        return foundRecord.inn
     }
 
     /*
@@ -206,9 +180,9 @@ export default class ElactEruzService extends Service<typeof settings> {
         regNum: string,
     ): Promise<dbTable | undefined> {
         try {
-            return await this._get(ctx, { id: regNum });
+            return await this._get(ctx, { id: regNum })
         } catch (_) {}
-        return undefined;
+        return undefined
     }
 
     /*
@@ -221,7 +195,7 @@ export default class ElactEruzService extends Service<typeof settings> {
             'elact-eruz.created',
             { regNum: json.regNum, inn: json.inn },
             { group: 'elact-eruz' },
-        );
+        )
     }
 
     @lifecycle
@@ -230,6 +204,6 @@ export default class ElactEruzService extends Service<typeof settings> {
             'elact-eruz.removed',
             { regNum: json.regNum, inn: json.inn },
             { group: 'elact-eruz' },
-        );
+        )
     }
 }
